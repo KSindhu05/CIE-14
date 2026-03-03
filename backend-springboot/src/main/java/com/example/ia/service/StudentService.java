@@ -26,11 +26,11 @@ public class StudentService {
     }
 
     public java.util.Optional<Student> getStudentByRegNo(String regNo) {
-        return studentRepository.findByRegNo(regNo);
+        return studentRepository.findByRegNoIgnoreCase(regNo);
     }
 
     public java.util.List<com.example.ia.payload.response.FacultyResponse> getFacultyForStudent(String username) {
-        Student student = studentRepository.findByRegNo(username).orElse(null);
+        Student student = studentRepository.findByRegNoIgnoreCase(username).orElse(null);
         if (student == null)
             return java.util.List.of();
 
@@ -39,7 +39,7 @@ public class StudentService {
                 .findByDepartmentAndSemester(student.getDepartment(), student.getSemester());
 
         java.util.Set<String> semesterSubjectNames = semesterSubjects.stream()
-                .map(com.example.ia.entity.Subject::getName)
+                .map(s -> s.getName().replaceAll("(?i)\\s*[\\[\\(]?(Theory|Lab|T|L)[\\]\\)]?\\s*$", "").trim())
                 .collect(java.util.stream.Collectors.toSet());
 
         // 2. Get all faculty in the department
@@ -48,20 +48,37 @@ public class StudentService {
 
         java.util.List<com.example.ia.payload.response.FacultyResponse> response = new java.util.ArrayList<>();
 
-        String studentSection = student.getSection() != null ? student.getSection().trim() : "";
+        String studentSection = (student.getSection() != null && !student.getSection().isEmpty())
+                ? student.getSection().trim()
+                : "";
+
+        String studentSemester = student.getSemester() != null ? student.getSemester().toString() : "";
 
         for (com.example.ia.entity.User faculty : departmentFaculty) {
-            // Check section
+            // Check semester — Allow faculty if no semester restriction or matching
+            // semester
+            String facSemester = faculty.getSemester();
+            if (facSemester != null && !facSemester.isBlank() && !studentSemester.isEmpty()) {
+                java.util.List<String> semesters = java.util.Arrays.stream(facSemester.split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .collect(java.util.stream.Collectors.toList());
+                if (!semesters.contains(studentSemester)) {
+                    continue;
+                }
+            }
+
+            // Check section — Allow faculty if no section restriction or matching section
             boolean sectionMatch = false;
             String facSections = faculty.getSection();
             if (facSections == null || facSections.isBlank()) {
-                sectionMatch = true; // No restriction means see all
+                sectionMatch = true;
             } else {
                 java.util.List<String> sections = java.util.Arrays.stream(facSections.split(","))
                         .map(String::trim)
                         .filter(s -> !s.isEmpty())
                         .collect(java.util.stream.Collectors.toList());
-                if (sections.contains(studentSection)) {
+                if (sections.contains(studentSection) || studentSection.isEmpty()) {
                     sectionMatch = true;
                 }
             }
@@ -77,7 +94,12 @@ public class StudentService {
             java.util.List<String> matchedSubjects = java.util.Arrays.stream(facSubjectsStr.split(","))
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
-                    .filter(s -> semesterSubjectNames.contains(s))
+                    .filter(s -> {
+                        String baseName = s.replaceAll("(?i)\\s*[\\[\\(]?(Theory|Lab|T|L)[\\]\\)]?\\s*$", "").trim();
+                        return semesterSubjectNames.contains(baseName);
+                    })
+                    .map(s -> s.replaceAll("(?i)\\s*[\\[\\(]?(Theory|Lab|T|L)[\\]\\)]?\\s*$", "").trim())
+                    .distinct() // Ensure no duplicates if they taught both lab and theory and they were listed
                     .collect(java.util.stream.Collectors.toList());
 
             if (!matchedSubjects.isEmpty()) {
@@ -91,6 +113,13 @@ public class StudentService {
         }
 
         return response;
+    }
+
+    public java.util.List<com.example.ia.entity.Subject> getSubjectsForStudent(String username) {
+        return studentRepository.findByRegNoIgnoreCase(username)
+                .map(student -> subjectRepository.findByDepartmentAndSemester(student.getDepartment(),
+                        student.getSemester()))
+                .orElse(java.util.List.of());
     }
 
     @Autowired
