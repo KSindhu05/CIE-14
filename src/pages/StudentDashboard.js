@@ -363,11 +363,22 @@ const StudentDashboard = () => {
             else if (selectedCIE === 'CIE-4' && mark.cie4Score != null) hasDataForSelectedCIE = true;
             else if (selectedCIE === 'CIE-5' && mark.cie5Score != null) hasDataForSelectedCIE = true;
 
-            let total = selectedCIE === 'All' ? mark.totalScore || 0 :
-                selectedCIE === 'CIE-1' ? mark.cie1Score || 0 :
-                    selectedCIE === 'CIE-2' ? mark.cie2Score || 0 :
-                        selectedCIE === 'CIE-3' ? mark.cie3Score || 0 :
-                            selectedCIE === 'CIE-4' ? mark.cie4Score || 0 : mark.cie5Score || 0;
+            let hasAnyScore = mark.cie1Score != null || mark.cie2Score != null || mark.cie3Score != null || mark.cie4Score != null || mark.cie5Score != null;
+
+            let total;
+            if (selectedCIE === 'All') {
+                total = hasAnyScore ? (mark.totalScore || 0) : '-';
+            } else if (selectedCIE === 'CIE-1') {
+                total = mark.cie1Score != null ? mark.cie1Score : '-';
+            } else if (selectedCIE === 'CIE-2') {
+                total = mark.cie2Score != null ? mark.cie2Score : '-';
+            } else if (selectedCIE === 'CIE-3') {
+                total = mark.cie3Score != null ? mark.cie3Score : '-';
+            } else if (selectedCIE === 'CIE-4') {
+                total = mark.cie4Score != null ? mark.cie4Score : '-';
+            } else if (selectedCIE === 'CIE-5') {
+                total = mark.cie5Score != null ? mark.cie5Score : '-';
+            }
 
             // Format marks: if null, show '-'
             const fmt = (val) => val != null ? val : '-';

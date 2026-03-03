@@ -78,40 +78,10 @@ public class PrincipalController {
     @PreAuthorize("hasRole('PRINCIPAL')")
     @Transactional
     public ResponseEntity<?> resetMarks() {
-        List<com.example.ia.entity.CieMark> allMarks = cieMarkRepository.findAll();
-        java.util.Map<String, Double> totals = new java.util.HashMap<>();
-
-        for (com.example.ia.entity.CieMark m : allMarks) {
-            if (m.getMarks() != null && m.getStudent() != null && m.getSubject() != null) {
-                String key = m.getStudent().getId() + "_" + m.getSubject().getId();
-                totals.put(key, totals.getOrDefault(key, 0.0) + m.getMarks());
-            }
-        }
-
         cieMarkRepository.deleteAll();
+        attendanceRepository.deleteAll();
 
-        List<com.example.ia.entity.CieMark> archivedMarks = new java.util.ArrayList<>();
-        for (com.example.ia.entity.CieMark m : allMarks) {
-            if (m.getMarks() != null && m.getStudent() != null && m.getSubject() != null) {
-                String key = m.getStudent().getId() + "_" + m.getSubject().getId();
-                if (totals.containsKey(key)) {
-                    com.example.ia.entity.CieMark archive = new com.example.ia.entity.CieMark();
-                    archive.setStudent(m.getStudent());
-                    archive.setSubject(m.getSubject());
-                    archive.setCieType("TOTAL");
-                    archive.setMarks(totals.get(key));
-                    archive.setStatus("APPROVED");
-                    archivedMarks.add(archive);
-                    totals.remove(key); // prevent duplicates
-                }
-            }
-        }
-
-        if (!archivedMarks.isEmpty()) {
-            cieMarkRepository.saveAll(archivedMarks);
-        }
-
-        return ResponseEntity.ok(Map.of("message", "Individual marks wiped. Total marks securely archived."));
+        return ResponseEntity.ok(Map.of("message", "All CIE marks and attendance have been permanently wiped."));
     }
 
     @PostMapping("/semester/reset-faculty")
