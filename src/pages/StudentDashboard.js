@@ -234,63 +234,83 @@ const StudentDashboard = () => {
         return () => clearInterval(typingInterval);
     }, [studentInfo.name]);
 
-    const renderOverview = () => (
-        <div className={styles.detailsContainer}>
-            <div className={styles.contentGrid}>
-                <div className={styles.card} style={{ animationDelay: '0.2s' }}>
-                    <div className={styles.cardHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h2 className={styles.cardTitle} style={{ margin: 0 }}>📑 Current Semester CIE Performance</h2>
-                    </div>
-                    <div className={styles.tableContainer}>
-                        <table className={styles.table}>
-                            <thead><tr><th>Subject</th><th>CIE-1</th><th>Att %</th><th>Total Progress</th><th style={{ background: '#fefce8', color: '#a16207' }}>Remarks</th></tr></thead>
-                            <tbody>
-                                {realSubjects.length > 0 ? realSubjects.map((sub, idx) => {
-                                    const mark = realMarks.find(m => m.name === sub.name) || {};
-                                    const total = mark.totalScore || 0;
-                                    const maxMarks = 250; // Total for all 5 CIEs
-                                    const status = getStatus(mark.cie1Score || 0, 50);
-                                    const progressWidth = Math.min((total / maxMarks) * 100, 100);
+    const renderOverview = () => {
+        // Determine the latest CIE that has any marks across all subjects
+        const cieKeys = [
+            { key: 'cie5Score', att: 'cie5Att', label: 'CIE-5' },
+            { key: 'cie4Score', att: 'cie4Att', label: 'CIE-4' },
+            { key: 'cie3Score', att: 'cie3Att', label: 'CIE-3' },
+            { key: 'cie2Score', att: 'cie2Att', label: 'CIE-2' },
+            { key: 'cie1Score', att: 'cie1Att', label: 'CIE-1' },
+        ];
+        let latestCie = { key: 'cie1Score', att: 'cie1Att', label: 'CIE-1' }; // default
+        for (const cie of cieKeys) {
+            if (realMarks.some(m => m[cie.key] != null)) {
+                latestCie = cie;
+                break;
+            }
+        }
 
-                                    return (
-                                        <tr key={idx} style={{ animation: `fadeIn 0.4s ease-out ${idx * 0.1}s backwards` }}>
-                                            <td><div className={styles.subjectCell}><span style={{ fontWeight: 600 }}>{sub.name}</span><br /><span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{sub.code}</span></div></td>
-                                            <td>{mark.cie1Score != null ? mark.cie1Score + '/50' : '-'}</td>
-                                            <td>{mark.cie1Att != null ? mark.cie1Att + '%' : '-'}</td>
-                                            <td style={{ minWidth: '150px' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '4px' }}>
-                                                    <span>{total} / {maxMarks}</span>
-                                                    <span style={{ fontWeight: 600 }}>{Math.round(progressWidth)}%</span>
-                                                </div>
-                                                <div className={styles.progressContainer}>
-                                                    <div className={styles.progressBar} style={{ width: `${progressWidth}%`, background: status.color }}></div>
-                                                </div>
-                                            </td>
-                                            {(() => {
-                                                const score = mark.cie1Score != null ? parseFloat(mark.cie1Score) : null;
-                                                const att = mark.cie1Att != null ? parseFloat(mark.cie1Att) : null;
-                                                if (score == null) return <td style={{ width: '250px', minWidth: '250px', padding: 0 }}><div style={{ fontSize: '0.72rem', color: '#94a3b8', padding: '8px 4px' }}>-</div></td>;
-                                                let remark = ''; let color = '#64748b'; let bg = 'transparent';
-                                                if (score < 25 && att != null && att < 75) { remark = 'CIE-1: Marks & Att Low - Meet HOD'; color = '#dc2626'; bg = '#fef2f2'; }
-                                                else if (score < 25) { remark = 'CIE-1: Marks Low - Meet HOD'; color = '#ea580c'; bg = '#fff7ed'; }
-                                                else if (att != null && att < 75) { remark = 'CIE-1: Att Low - Meet HOD'; color = '#ea580c'; bg = '#fff7ed'; }
-                                                else if (score >= 40 && (att == null || att >= 75)) { remark = 'Excellent'; color = '#15803d'; bg = '#f0fdf4'; }
-                                                else { remark = 'Good'; color = '#2563eb'; bg = '#eff6ff'; }
-                                                return <td style={{ width: '250px', minWidth: '250px', padding: '8px 4px', background: bg }}>
-                                                    <div style={{ fontSize: '0.72rem', fontWeight: 600, color, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.4' }}>{remark}</div>
-                                                </td>;
-                                            })()}
-                                        </tr>
-                                    );
-                                }) : <tr><td colSpan="5" style={{ textAlign: 'center', padding: '1rem' }}>Loading data...</td></tr>}
-                            </tbody>
-                        </table>
+        return (
+            <div className={styles.detailsContainer}>
+                <div className={styles.contentGrid}>
+                    <div className={styles.card} style={{ animationDelay: '0.2s' }}>
+                        <div className={styles.cardHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h2 className={styles.cardTitle} style={{ margin: 0 }}>📑 Current Semester CIE Performance</h2>
+                        </div>
+                        <div className={styles.tableContainer}>
+                            <table className={styles.table}>
+                                <thead><tr><th>Subject</th><th>{latestCie.label}</th><th>Att %</th><th>Total Progress</th><th style={{ background: '#fefce8', color: '#a16207' }}>Remarks</th></tr></thead>
+                                <tbody>
+                                    {realSubjects.length > 0 ? realSubjects.map((sub, idx) => {
+                                        const mark = realMarks.find(m => m.name === sub.name) || {};
+                                        const total = mark.totalScore || 0;
+                                        const maxMarks = 250;
+                                        const cieScore = mark[latestCie.key];
+                                        const cieAtt = mark[latestCie.att];
+                                        const status = getStatus(cieScore || 0, 50);
+                                        const progressWidth = Math.min((total / maxMarks) * 100, 100);
+
+                                        return (
+                                            <tr key={idx} style={{ animation: `fadeIn 0.4s ease-out ${idx * 0.1}s backwards` }}>
+                                                <td><div className={styles.subjectCell}><span style={{ fontWeight: 600 }}>{sub.name}</span><br /><span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{sub.code}</span></div></td>
+                                                <td>{cieScore != null ? cieScore + '/50' : '-'}</td>
+                                                <td>{cieAtt != null ? cieAtt + '%' : '-'}</td>
+                                                <td style={{ minWidth: '150px' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '4px' }}>
+                                                        <span>{total} / {maxMarks}</span>
+                                                        <span style={{ fontWeight: 600 }}>{Math.round(progressWidth)}%</span>
+                                                    </div>
+                                                    <div className={styles.progressContainer}>
+                                                        <div className={styles.progressBar} style={{ width: `${progressWidth}%`, background: status.color }}></div>
+                                                    </div>
+                                                </td>
+                                                {(() => {
+                                                    const score = cieScore != null ? parseFloat(cieScore) : null;
+                                                    const att = cieAtt != null ? parseFloat(cieAtt) : null;
+                                                    if (score == null) return <td style={{ width: '250px', minWidth: '250px', padding: 0 }}><div style={{ fontSize: '0.72rem', color: '#94a3b8', padding: '8px 4px' }}>-</div></td>;
+                                                    let remark = ''; let color = '#64748b'; let bg = 'transparent';
+                                                    if (score < 25 && att != null && att < 75) { remark = `${latestCie.label}: Marks & Att Low - Meet HOD`; color = '#dc2626'; bg = '#fef2f2'; }
+                                                    else if (score < 25) { remark = `${latestCie.label}: Marks Low - Meet HOD`; color = '#ea580c'; bg = '#fff7ed'; }
+                                                    else if (att != null && att < 75) { remark = `${latestCie.label}: Att Low - Meet HOD`; color = '#ea580c'; bg = '#fff7ed'; }
+                                                    else if (score >= 40 && (att == null || att >= 75)) { remark = 'Excellent'; color = '#15803d'; bg = '#f0fdf4'; }
+                                                    else { remark = 'Good'; color = '#2563eb'; bg = '#eff6ff'; }
+                                                    return <td style={{ width: '250px', minWidth: '250px', padding: '8px 4px', background: bg }}>
+                                                        <div style={{ fontSize: '0.72rem', fontWeight: 600, color, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.4' }}>{remark}</div>
+                                                    </td>;
+                                                })()}
+                                            </tr>
+                                        );
+                                    }) : <tr><td colSpan="5" style={{ textAlign: 'center', padding: '1rem' }}>Loading data...</td></tr>}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
+                    <AcademicInsights realMarks={realMarks} />
                 </div>
-                <AcademicInsights realMarks={realMarks} />
             </div>
-        </div>
-    );
+        );
+    };
 
     // ... (rest of render functions remain mostly same but can benefit from global CSS updates)
 
