@@ -137,6 +137,13 @@ public class FacultyService {
             }
         }
 
+        // Sort by registration number so sections always appear in A→B→C order
+        result.sort((a, b) -> {
+            String regA = a.getRegNo() != null ? a.getRegNo() : "";
+            String regB = b.getRegNo() != null ? b.getRegNo() : "";
+            return regA.compareToIgnoreCase(regB);
+        });
+
         return result;
     }
 

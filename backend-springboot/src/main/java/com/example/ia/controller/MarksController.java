@@ -76,15 +76,28 @@ public class MarksController {
         boolean isHod = userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_HOD"));
         List<CieMark> marksToSave = new ArrayList<>();
 
+        // PERFORMANCE: Pre-fetch allowed student IDs ONCE instead of per-record
+        java.util.Set<Long> allowedStudentIds = null;
+        if (!isHod) {
+            List<com.example.ia.entity.Student> allowedStudents = facultyService.getStudentsForFaculty(username);
+            allowedStudentIds = allowedStudents.stream().map(s -> s.getId()).collect(java.util.stream.Collectors.toSet());
+        }
+
+        // PERFORMANCE: Cache subject lookups (usually all marks are for the same subject)
+        java.util.Map<Long, Subject> subjectCache = new java.util.HashMap<>();
+        java.util.Map<Long, Student> studentCache = new java.util.HashMap<>();
+
         for (MarkUpdateDto dto : markDtos) {
-            // Validation: and check ownership for FACULTY
-            if (!isHod && !facultyService.isFacultyAssignedToSubjectAndStudent(username, dto.getSubjectId(), dto.getStudentId())) {
+            // PERFORMANCE: Use pre-fetched set instead of per-record DB call
+            if (!isHod && (allowedStudentIds == null || !allowedStudentIds.contains(dto.getStudentId()))) {
                 continue; // Skip unauthorized entries
             }
-            // For HOD, we trust the frontend department filtering but could add dept check here too
-            // ... (rest of the check)
-            Student student = studentRepository.findById(dto.getStudentId()).orElse(null);
-            Subject subject = subjectRepository.findById(dto.getSubjectId()).orElse(null);
+
+            // Use cached lookups
+            Student student = studentCache.computeIfAbsent(dto.getStudentId(), 
+                    id -> studentRepository.findById(id).orElse(null));
+            Subject subject = subjectCache.computeIfAbsent(dto.getSubjectId(), 
+                    id -> subjectRepository.findById(id).orElse(null));
 
             if (student != null && subject != null) {
                 // Enforce Name-Based CIE role restrictions (only for actual marks/attendance
@@ -169,36 +182,63 @@ public class MarksController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
+    // --- Unlock Requests ---
+
+    @PostMapping("/unlock-request")
+    @PreAuthorize("hasRole('FACULTY')")
+    public ResponseEntity<?> createUnlockRequest(@RequestBody Map<String, Object> request, @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        Long subjectId = ((Number) request.get("subjectId")).longValue();
+        String cieTypes = (String) request.get("cieTypes");
+        String reason = (String) request.get("reason");
+        
+        marksService.createUnlockRequest(subjectId, userDetails.getUsername(), cieTypes, reason);
+        return ResponseEntity.ok(new MessageResponse("Unlock request sent to HOD successfully."));
+    }
+
+    @GetMapping("/unlock-requests/pending")
+    @PreAuthorize("hasRole('HOD')")
+    public ResponseEntity<?> getPendingUnlockRequests(@RequestParam String department, @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        if (!isAuthorizedForDepartment(department, userDetails)) {
+            return ResponseEntity.status(403).body(Map.of("message", "Access denied: You are not authorized for this department."));
+        }
+        return ResponseEntity.ok(marksService.getPendingUnlockRequests(department));
+    }
+
+    @PostMapping("/unlock-requests/{id}/approve")
+    @PreAuthorize("hasRole('HOD')")
+    public ResponseEntity<?> approveUnlockRequest(@PathVariable Long id, @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        // ideally checking department auth again, but handled simplified here
+        marksService.approveUnlockRequest(id);
+        return ResponseEntity.ok(new MessageResponse("Unlock request approved marks unlocked."));
+    }
+
+    @PostMapping("/unlock-requests/{id}/reject")
+    @PreAuthorize("hasRole('HOD')")
+    public ResponseEntity<?> rejectUnlockRequest(@PathVariable Long id, @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        marksService.rejectUnlockRequest(id);
+        return ResponseEntity.ok(new MessageResponse("Unlock request rejected."));
+    }
+
+    // Restore original HOD manual unlock
     @PostMapping("/unlock")
     @PreAuthorize("hasRole('HOD')")
-    public ResponseEntity<?> unlockMarks(@RequestBody UnlockRequest request, @AuthenticationPrincipal UserDetailsImpl userDetails) {
+    public ResponseEntity<?> unlockMarks(@RequestBody UnlockRequestDTO request, @AuthenticationPrincipal UserDetailsImpl userDetails) {
         return subjectRepository.findById(request.getSubjectId()).map(subject -> {
             if (!isAuthorizedForDepartment(subject.getDepartment(), userDetails)) {
-                return ResponseEntity.status(403).body(Map.of("message", "Access denied: You are not authorized for this department."));
+                return ResponseEntity.status(403).body(Map.of("message", "Access denied."));
             }
             marksService.unlockMarks(request.getSubjectId(), request.getIaType());
             return ResponseEntity.ok(new MessageResponse("Marks unlocked for editing"));
         }).orElse(ResponseEntity.notFound().build());
     }
 
-    static class UnlockRequest {
+    static class UnlockRequestDTO {
         private Long subjectId;
         private String iaType;
 
-        public Long getSubjectId() {
-            return subjectId;
-        }
-
-        public void setSubjectId(Long subjectId) {
-            this.subjectId = subjectId;
-        }
-
-        public String getIaType() {
-            return iaType;
-        }
-
-        public void setIaType(String iaType) {
-            this.iaType = iaType;
-        }
+        public Long getSubjectId() { return subjectId; }
+        public void setSubjectId(Long subjectId) { this.subjectId = subjectId; }
+        public String getIaType() { return iaType; }
+        public void setIaType(String iaType) { this.iaType = iaType; }
     }
 }

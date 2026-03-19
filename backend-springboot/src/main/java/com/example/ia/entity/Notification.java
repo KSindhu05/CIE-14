@@ -2,6 +2,7 @@ package com.example.ia.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Entity
 @Table(name = "notifications")
@@ -16,6 +17,7 @@ public class Notification {
 
     private String message;
     private String type; // INFO, WARNING, ALERT
+    @JsonProperty("isRead")
     private boolean isRead = false;
     private String category;
 

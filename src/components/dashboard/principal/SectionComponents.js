@@ -420,12 +420,16 @@ export const NotificationsSection = memo(({
 
     const displayedNotifs = useMemo(() => {
         if (filterDept === "ALL") return notifications;
+        const selectedDeptObj = departments.find(d => (d.id || d) === filterDept);
+        const deptId = selectedDeptObj?.id || filterDept;
+        const deptName = selectedDeptObj?.name || filterDept;
+
         return notifications.filter(n => {
             if (!n.category) return false;
-            // Matches "HOD Update - CSE" or "HOD - CSE" or "CSE HODs"
-            return n.category.toUpperCase().includes(filterDept.toUpperCase());
+            const cat = n.category.toUpperCase();
+            return cat.includes(deptId.toUpperCase()) || cat.includes(deptName.toUpperCase());
         });
-    }, [notifications, filterDept]);
+    }, [notifications, filterDept, departments]);
 
     return (
     <div className={styles.sectionVisible}>
@@ -459,10 +463,11 @@ export const NotificationsSection = memo(({
                             onChange={(e) => setTargetDept && setTargetDept(e.target.value)}
                         >
                             <option value="ALL">All Departments</option>
-                            {departments.map(dept => {
-                                const deptName = dept.name || dept;
-                                return <option key={dept.id || deptName} value={deptName}>{deptName}</option>;
-                            })}
+                            {departments.map(dept => (
+                                <option key={dept.id || (dept.name || dept)} value={dept.id || (dept.name || dept)}>
+                                    {dept.name || dept.id || dept}
+                                </option>
+                            ))}
                         </select>
                     </div>
                     <div>
@@ -503,10 +508,11 @@ export const NotificationsSection = memo(({
                             style={{ padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.85rem', outline: 'none' }}
                         >
                             <option value="ALL">All Depts</option>
-                            {departments.map(dept => {
-                                const deptName = dept.name || dept;
-                                return <option key={dept.id || deptName} value={deptName}>{deptName}</option>;
-                            })}
+                            {departments.map(dept => (
+                                <option key={dept.id || (dept.name || dept)} value={dept.id || (dept.name || dept)}>
+                                    {dept.name || dept.id || dept}
+                                </option>
+                            ))}
                         </select>
                         {displayedNotifs.length > 0 && onClear && (
                             <button

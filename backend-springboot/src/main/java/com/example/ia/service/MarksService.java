@@ -10,6 +10,8 @@ import com.example.ia.entity.Notification;
 import com.example.ia.entity.User;
 import com.example.ia.repository.NotificationRepository;
 import com.example.ia.repository.UserRepository;
+import com.example.ia.entity.UnlockRequest;
+import com.example.ia.repository.UnlockRequestRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,15 +39,24 @@ public class MarksService {
     @Autowired
     private FacultyService facultyService;
 
+    @Autowired
+    private UnlockRequestRepository unlockRequestRepository;
+
     @Transactional
     public void submitMarks(Long subjectId, String cieType, String facultyUsername) {
-        // Find all marks for this subject and CIE type and update status to SUBMITTED
-        // Only submit marks that have been entered (marks != null)
-        // 0 is valid (faculty may give 0), but null means not yet entered
+        // Get the faculty's allowed student IDs (only their assigned sections)
+        List<Student> allowedStudents = facultyService.getStudentsForFaculty(facultyUsername);
+        java.util.Set<Long> allowedStudentIds = allowedStudents.stream()
+                .map(Student::getId).collect(java.util.stream.Collectors.toSet());
+
+        // Find all marks for this subject and CIE type 
+        // Only submit marks that belong to this faculty's students
         List<CieMark> marks = cieMarkRepository.findBySubject_Id(subjectId);
         marks.forEach(mark -> {
             if (mark.getCieType().equals(cieType)
-                    && mark.getMarks() != null) {
+                    && mark.getMarks() != null
+                    && mark.getStudent() != null
+                    && allowedStudentIds.contains(mark.getStudent().getId())) {
                 mark.setStatus("SUBMITTED");
             }
         });
@@ -62,14 +73,30 @@ public class MarksService {
         String subjectName = "";
         String subjectDepartment = "";
 
-        for (CieMark payload : marksPayload) {
-            Optional<CieMark> existing = cieMarkRepository.findByStudent_IdAndSubject_IdAndCieType(
-                    payload.getStudent().getId(),
-                    payload.getSubject().getId(),
-                    payload.getCieType());
+        if (marksPayload.isEmpty()) return;
 
-            if (existing.isPresent()) {
-                CieMark mark = existing.get();
+        // PERFORMANCE: Pre-fetch ALL existing marks for this subject in ONE query
+        Long subjectId = marksPayload.get(0).getSubject().getId();
+        List<CieMark> allExistingMarks = cieMarkRepository.findBySubject_Id(subjectId);
+        
+        // Build a lookup map: "studentId_cieType" -> existing CieMark
+        java.util.Map<String, CieMark> existingMap = new java.util.HashMap<>();
+        for (CieMark m : allExistingMarks) {
+            if (m.getStudent() != null) {
+                String key = m.getStudent().getId() + "_" + m.getCieType();
+                existingMap.put(key, m);
+            }
+        }
+
+        // Collect all marks to batch-save at the end
+        List<CieMark> toSave = new java.util.ArrayList<>();
+
+        for (CieMark payload : marksPayload) {
+            String key = payload.getStudent().getId() + "_" + payload.getCieType();
+            CieMark existing = existingMap.get(key);
+
+            if (existing != null) {
+                CieMark mark = existing;
 
                 if (isHod) {
                     boolean changed = false;
@@ -108,7 +135,7 @@ public class MarksService {
                     mark.setAttendancePercentage(payload.getAttendancePercentage() < 0 ? null : payload.getAttendancePercentage());
                 }
 
-                cieMarkRepository.save(mark);
+                toSave.add(mark);
             } else {
                 if (payload.getMarks() != null && payload.getMarks() < 0) payload.setMarks(null);
                 if (payload.getAttendancePercentage() != null && payload.getAttendancePercentage() < 0) payload.setAttendancePercentage(null);
@@ -128,9 +155,14 @@ public class MarksService {
                     }
 
                     if (payload.getStatus() == null) payload.setStatus("PENDING");
-                    cieMarkRepository.save(payload);
+                    toSave.add(payload);
                 }
             }
+        }
+
+        // PERFORMANCE: Batch-save ALL marks in one call
+        if (!toSave.isEmpty()) {
+            cieMarkRepository.saveAll(toSave);
         }
 
         if (isHod && !changeDetails.isEmpty()) {
@@ -149,7 +181,6 @@ public class MarksService {
 
             // Notify Faculty
             if (marksPayload.size() > 0 && marksPayload.get(0).getSubject() != null) {
-                Long subjectId = marksPayload.get(0).getSubject().getId();
                 java.util.Set<Long> affectedStudentIds = new java.util.HashSet<>();
                 for (CieMark pm : marksPayload) {
                     if (pm.getStudent() != null) affectedStudentIds.add(pm.getStudent().getId());
@@ -269,5 +300,91 @@ public class MarksService {
                 }
             }
         }
+    }
+
+    // --- Unlock Requests ---
+    
+    @Transactional
+    public UnlockRequest createUnlockRequest(Long subjectId, String facultyUsername, String cieTypes, String reason) {
+        Subject subject = subjectRepository.findById(subjectId)
+                .orElseThrow(() -> new RuntimeException("Subject not found"));
+        User faculty = userRepository.findByUsername(facultyUsername)
+                .orElseThrow(() -> new RuntimeException("Faculty not found"));
+
+        UnlockRequest request = new UnlockRequest();
+        request.setSubject(subject);
+        request.setFaculty(faculty);
+        request.setCieTypes(cieTypes);
+        request.setReason(reason);
+        request.setStatus("PENDING");
+        request.setDepartment(subject.getDepartment());
+        
+        UnlockRequest savedRequest = unlockRequestRepository.save(request);
+
+        // Notify HODs
+        List<User> hods = userRepository.findByRoleAndDepartment("ROLE_HOD", subject.getDepartment());
+        for (User hod : hods) {
+            Notification notif = new Notification();
+            notif.setUser(hod);
+            notif.setMessage("Faculty " + faculty.getFullName() + " requested to unlock marks for " + subject.getName() + " (" + cieTypes + ")");
+            notif.setType("INFO");
+            notif.setCategory("Unlock Request");
+            notificationRepository.save(notif);
+        }
+
+        return savedRequest;
+    }
+
+    @Transactional(readOnly = true)
+    public List<UnlockRequest> getPendingUnlockRequests(String department) {
+        return unlockRequestRepository.findByDepartmentAndStatusOrderByCreatedAtDesc(department, "PENDING");
+    }
+
+    @Transactional
+    public void approveUnlockRequest(Long requestId) {
+        UnlockRequest request = unlockRequestRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Unlock request not found"));
+        
+        if (!"PENDING".equals(request.getStatus())) {
+            throw new RuntimeException("Request is not pending");
+        }
+
+        // Unlock each requested CIE
+        String[] types = request.getCieTypes().split(",");
+        for (String type : types) {
+            unlockMarks(request.getSubject().getId(), type.trim());
+        }
+
+        request.setStatus("APPROVED");
+        unlockRequestRepository.save(request);
+
+        // Notify faculty
+        Notification notif = new Notification();
+        notif.setUser(request.getFaculty());
+        notif.setMessage("Your request to unlock marks for " + request.getSubject().getName() + " (" + request.getCieTypes() + ") has been APPROVED.");
+        notif.setType("INFO");
+        notif.setCategory("Unlock Approved");
+        notificationRepository.save(notif);
+    }
+
+    @Transactional
+    public void rejectUnlockRequest(Long requestId) {
+        UnlockRequest request = unlockRequestRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Unlock request not found"));
+        
+        if (!"PENDING".equals(request.getStatus())) {
+            throw new RuntimeException("Request is not pending");
+        }
+
+        request.setStatus("REJECTED");
+        unlockRequestRepository.save(request);
+
+        // Notify faculty
+        Notification notif = new Notification();
+        notif.setUser(request.getFaculty());
+        notif.setMessage("Your request to unlock marks for " + request.getSubject().getName() + " (" + request.getCieTypes() + ") has been REJECTED.");
+        notif.setType("ALERT");
+        notif.setCategory("Unlock Rejected");
+        notificationRepository.save(notif);
     }
 }

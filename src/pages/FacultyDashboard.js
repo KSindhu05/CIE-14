@@ -20,12 +20,267 @@ const calculateGradeFromPercentage = (percentage) => {
     return 'F';
 };
 
+const DebouncedInput = ({ value, onChange, max, style, className, disabled, onFocus }) => {
+    const [localValue, setLocalValue] = useState(value);
+
+    React.useEffect(() => {
+        setLocalValue(value);
+    }, [value]);
+
+    const handleBlur = () => {
+        if (localValue !== value) {
+            onChange(localValue);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            handleBlur();
+            moveFocus(e.target, 1);
+        } else if (e.key === 'ArrowDown') {
+            moveFocus(e.target, 1);
+            e.preventDefault();
+        } else if (e.key === 'ArrowUp') {
+            moveFocus(e.target, -1);
+            e.preventDefault();
+        }
+    };
+
+    const moveFocus = (target, direction) => {
+        const td = target.closest('td');
+        if (!td) return;
+        const tr = td.closest('tr');
+        if (!tr) return;
+        const cellIndex = Array.from(tr.children).indexOf(td);
+        
+        const nextTr = direction === 1 ? tr.nextElementSibling : tr.previousElementSibling;
+        if (nextTr) {
+            const nextTd = nextTr.children[cellIndex];
+            if (nextTd) {
+                const nextInput = nextTd.querySelector('input');
+                if (nextInput && !nextInput.disabled) {
+                    nextInput.focus();
+                    nextInput.select();
+                }
+            }
+        }
+    };
+
+    const handleChange = (e) => {
+        let val = e.target.value;
+        if (val === 'Ab') {
+            setLocalValue(val);
+            return;
+        }
+        
+        if (val === '') {
+            setLocalValue('');
+            return;
+        }
+
+        let num = parseInt(val, 10);
+        if (isNaN(num)) return;
+
+        if (num < 0) num = 0;
+        if (max && num > max) num = max;
+        
+        setLocalValue(num.toString());
+    };
+
+    return (
+        <input
+            type="number"
+            className={className}
+            style={style}
+            value={localValue === null || localValue === undefined ? '' : localValue}
+            max={max}
+            min="0"
+            disabled={disabled}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            onFocus={onFocus}
+        />
+    );
+};
+
+const FacultyStudentRow = React.memo(({ student, index, marks, selectedCieType, setSelectedCieType, styles, handleMarkChange, cieLockStatus, calculateAverage }) => {
+    const sMarks = marks || {};
+    const ia1Mark = sMarks['CIE1'] || {};
+
+    const valCIE1 = sMarks.cie1 !== undefined ? sMarks.cie1 : (ia1Mark.cie1Score != null ? ia1Mark.cie1Score : '');
+    const valCIE2 = sMarks.cie2 !== undefined ? sMarks.cie2 : (ia1Mark.cie2Score != null ? ia1Mark.cie2Score : '');
+    const valCIE3 = sMarks.cie3 !== undefined ? sMarks.cie3 : '';
+    const valCIE4 = sMarks.cie4 !== undefined ? sMarks.cie4 : '';
+    const valCIE5 = sMarks.cie5 !== undefined ? sMarks.cie5 : '';
+
+    const renderAttendanceCell = (cieKey) => {
+        if (selectedCieType !== cieKey && selectedCieType !== 'all') return null;
+        const attField = cieKey + 'Att';
+        return (
+            <td style={{ background: '#f0fdf4' }}>
+                <DebouncedInput
+                    className={styles.markInput}
+                    value={sMarks[attField] !== undefined ? sMarks[attField] : ''}
+                    onChange={(newVal) => handleMarkChange(student.id, attField, newVal)}
+                    max={100}
+                    disabled={cieLockStatus[cieKey]}
+                    style={{ background: cieLockStatus[cieKey] ? '#e5e7eb' : '#f0fdf4', border: '1px solid #86efac' }}
+                />
+            </td>
+        );
+    };
+
+    return (
+        <tr key={student.id}>
+            <td>{index + 1}</td>
+            <td style={{ whiteSpace: 'nowrap' }}>{student.rollNo || student.regNo}</td>
+            <td style={{ whiteSpace: 'nowrap' }}>{student.name}</td>
+            <td style={['cie1', 'all'].includes(selectedCieType) ? { background: '#eff6ff' } : {}}>
+                <DebouncedInput
+                    className={styles.markInput}
+                    value={valCIE1}
+                    onChange={(newVal) => handleMarkChange(student.id, 'cie1', newVal)}
+                    onFocus={() => { if (selectedCieType !== 'all') setSelectedCieType('cie1') }}
+                    max={50}
+                    disabled={cieLockStatus.cie1}
+                    style={cieLockStatus.cie1 ? { background: '#e5e7eb', cursor: 'not-allowed' } : {}}
+                />
+            </td>
+            {renderAttendanceCell('cie1')}
+            <td style={['cie2', 'all'].includes(selectedCieType) ? { background: '#eff6ff' } : {}}>
+                <DebouncedInput
+                    className={styles.markInput}
+                    value={valCIE2}
+                    onChange={(newVal) => handleMarkChange(student.id, 'cie2', newVal)}
+                    onFocus={() => { if (selectedCieType !== 'all') setSelectedCieType('cie2') }}
+                    max={50}
+                    disabled={cieLockStatus.cie2}
+                    style={cieLockStatus.cie2 ? { background: '#e5e7eb', cursor: 'not-allowed' } : {}}
+                />
+            </td>
+            {renderAttendanceCell('cie2')}
+            <td style={['cie3', 'all'].includes(selectedCieType) ? { background: '#eff6ff' } : {}}>
+                <DebouncedInput
+                    className={styles.markInput}
+                    value={valCIE3}
+                    onChange={(newVal) => handleMarkChange(student.id, 'cie3', newVal)}
+                    onFocus={() => { if (selectedCieType !== 'all') setSelectedCieType('cie3') }}
+                    max={50}
+                    disabled={cieLockStatus.cie3}
+                    style={cieLockStatus.cie3 ? { background: '#e5e7eb', cursor: 'not-allowed' } : {}}
+                />
+            </td>
+            {renderAttendanceCell('cie3')}
+            <td style={['cie4', 'all'].includes(selectedCieType) ? { background: '#eff6ff' } : {}}>
+                <DebouncedInput
+                    className={styles.markInput}
+                    value={valCIE4}
+                    onChange={(newVal) => handleMarkChange(student.id, 'cie4', newVal)}
+                    onFocus={() => { if (selectedCieType !== 'all') setSelectedCieType('cie4') }}
+                    max={50}
+                    disabled={cieLockStatus.cie4}
+                    style={cieLockStatus.cie4 ? { background: '#e5e7eb', cursor: 'not-allowed' } : {}}
+                />
+            </td>
+            {renderAttendanceCell('cie4')}
+            <td style={['cie5', 'all'].includes(selectedCieType) ? { background: '#eff6ff' } : {}}>
+                <DebouncedInput
+                    className={styles.markInput}
+                    value={valCIE5}
+                    onChange={(newVal) => handleMarkChange(student.id, 'cie5', newVal)}
+                    onFocus={() => { if (selectedCieType !== 'all') setSelectedCieType('cie5') }}
+                    max={50}
+                    disabled={cieLockStatus.cie5}
+                    style={cieLockStatus.cie5 ? { background: '#e5e7eb', cursor: 'not-allowed' } : {}}
+                />
+            </td>
+            {renderAttendanceCell('cie5')}
+            <td style={{ fontWeight: 'bold' }}>{calculateAverage(student)}</td>
+            {(() => {
+                const getCieRemark = (key, label) => {
+                    const v = sMarks[key] !== undefined && sMarks[key] !== '' ? parseFloat(sMarks[key]) : null;
+                    const a = sMarks[key + 'Att'] !== undefined && sMarks[key + 'Att'] !== '' ? parseFloat(sMarks[key + 'Att']) : null;
+                    if (v == null || isNaN(v) || a == null || isNaN(a)) return null;
+
+                    return {
+                        label,
+                        lowMarks: v < 25,
+                        lowAtt: a < 75,
+                        excellent: v >= 40 && a >= 75,
+                        severity: (v < 25 && a < 75) ? 3 : (v < 25 ? 2 : (a < 75 ? 2 : 0)),
+                        text: (v < 25 && a < 75) ? `${label}: Low Marks, Low Att` :
+                            (v < 25 ? `${label}: Low Marks` :
+                                (a < 75 ? `${label}: Low Att` :
+                                    (v >= 40 && a >= 75 ? `${label}: Excellent` : `${label}: Good`)))
+                    };
+                };
+                const allCies = [
+                    getCieRemark('cie1', 'CIE-1'), getCieRemark('cie2', 'CIE-2'),
+                    getCieRemark('cie3', 'CIE-3'), getCieRemark('cie4', 'CIE-4'),
+                    getCieRemark('cie5', 'CIE-5')
+                ];
+                const filled = allCies.filter(r => r !== null);
+
+                if (selectedCieType === 'all' && filled.length > 0) {
+                    const worst = Math.max(...filled.map(r => r.severity));
+                    const color = worst >= 3 ? '#dc2626' : worst >= 2 ? '#ea580c' : '#15803d';
+                    const bg = worst >= 3 ? '#fef2f2' : worst >= 2 ? '#fff7ed' : '#f0fdf4';
+
+                    const lowMarksCies = filled.filter(r => r.lowMarks).map(r => r.label);
+                    const lowAttCies = filled.filter(r => r.lowAtt).map(r => r.label);
+
+                    let textParts = [];
+                    if (lowMarksCies.length > 0) {
+                        textParts.push(`${lowMarksCies.join(',')} Low Marks`);
+                    }
+                    if (lowAttCies.length > 0) {
+                        textParts.push(`${lowAttCies.join(',')} Low Att`);
+                    }
+                    if (textParts.length === 0) {
+                        const allExcellent = filled.every(r => r.excellent);
+                        textParts.push(allExcellent ? 'All Excellent' : 'All Good');
+                    }
+                    const text = textParts.join(' | ');
+                    return <td style={{ width: '250px', minWidth: '250px', padding: '8px 4px', background: bg }}>
+                        <div style={{ fontSize: '0.65rem', fontWeight: 600, color, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.4' }}>{text}</div>
+                    </td>;
+                } else if (selectedCieType === 'all' && filled.length === 0) {
+                    return <td style={{ width: '250px', minWidth: '250px', padding: 0 }}><div style={{ fontSize: '0.72rem', color: '#94a3b8', padding: '8px 4px' }}>-</div></td>;
+                }
+
+                const focused = getCieRemark(selectedCieType, selectedCieType.replace('cie', 'CIE-'));
+                if (!focused) return <td style={{ width: '250px', minWidth: '250px', padding: 0 }}><div style={{ fontSize: '0.72rem', color: '#94a3b8', padding: '8px 4px' }}>-</div></td>;
+                const color = focused.severity >= 3 ? '#dc2626' : focused.severity >= 2 ? '#ea580c' : focused.severity === 0 ? '#15803d' : '#2563eb';
+                const bg = focused.severity >= 3 ? '#fef2f2' : focused.severity >= 2 ? '#fff7ed' : '#f0fdf4';
+                return <td style={{ width: '250px', minWidth: '250px', padding: '8px 4px', background: bg }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 600, color, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.4' }}>{focused.text}</div>
+                </td>;
+            })()}
+        </tr>
+    );
+}, (prev, next) => {
+    return prev.student.id === next.student.id &&
+        prev.index === next.index &&
+        prev.marks === next.marks &&
+        prev.selectedCieType === next.selectedCieType &&
+        prev.styles === next.styles &&
+        prev.handleMarkChange === next.handleMarkChange &&
+        prev.cieLockStatus === next.cieLockStatus &&
+        prev.calculateAverage === next.calculateAverage;
+});
+
 const FacultyDashboard = () => {
     const { user } = useAuth();
     const { showConfirm, showPrompt } = useDialog();
     const [activeSection, setActiveSection] = useState(() => {
         return sessionStorage.getItem('facultyActiveSection') || 'Overview';
     });
+
+    // Unlock Request State
+    const [showUnlockModal, setShowUnlockModal] = useState(false);
+    const [unlockReason, setUnlockReason] = useState('');
+    const [unlockSelectedCies, setUnlockSelectedCies] = useState([]);
 
     React.useEffect(() => {
         sessionStorage.setItem('facultyActiveSection', activeSection);
@@ -436,8 +691,15 @@ const FacultyDashboard = () => {
                         if (idx !== -1 && row[idx] !== "") {
                             let val = row[idx];
                             if (val !== 'Ab') {
-                                val = parseInt(val, 10);
-                                if (isNaN(val)) val = '';
+                                let numVal = parseInt(val, 10);
+                                if (isNaN(numVal)) {
+                                    val = '';
+                                } else {
+                                    const max = stateField.endsWith('Att') ? 100 : 50;
+                                    if (numVal < 0) numVal = 0;
+                                    if (numVal > max) numVal = max;
+                                    val = numVal;
+                                }
                             }
                             if (!newMarks[student.id]) newMarks[student.id] = { cie1: '', cie2: '', cie3: '', cie4: '', cie5: '', cie1Att: '', cie2Att: '', cie3Att: '', cie4Att: '', cie5Att: '' };
                             newMarks[student.id][stateField] = val;
@@ -767,7 +1029,17 @@ const FacultyDashboard = () => {
             path: '/dashboard/faculty',
             icon: <Bell size={20} />,
             isActive: activeSection === 'Notifications',
-            onClick: () => { setActiveSection('Notifications'); setSelectedSubject(null); },
+            onClick: async () => { 
+                setActiveSection('Notifications'); 
+                setSelectedSubject(null); 
+                setUnreadCount(0);
+                setNotifications(prev => prev.map(n => ({...n, isRead: true})));
+                try {
+                    await authenticatedFetch(`${API_BASE_URL}/notifications/read-all`, { method: 'POST' });
+                } catch (e) {
+                    console.error("Failed to mark all as read", e);
+                }
+            },
             badge: unreadCount || null
         },
     ];
@@ -859,7 +1131,15 @@ const FacultyDashboard = () => {
                     cie4: role === 'THEORY' || cieStatuses.cie4.has('SUBMITTED') || cieStatuses.cie4.has('APPROVED'),
                     cie5: role === 'LAB' || cieStatuses.cie5.has('SUBMITTED') || cieStatuses.cie5.has('APPROVED'),
                 });
-                setIsLocked(false);
+                // Compute overall lock status from individual CIE statuses
+                const anyCieLocked = Object.values({
+                    cie1: role === 'LAB' || cieStatuses.cie1.has('SUBMITTED') || cieStatuses.cie1.has('APPROVED'),
+                    cie2: role === 'LAB' || cieStatuses.cie2.has('SUBMITTED') || cieStatuses.cie2.has('APPROVED'),
+                    cie3: role === 'THEORY' || cieStatuses.cie3.has('SUBMITTED') || cieStatuses.cie3.has('APPROVED'),
+                    cie4: role === 'THEORY' || cieStatuses.cie4.has('SUBMITTED') || cieStatuses.cie4.has('APPROVED'),
+                    cie5: role === 'LAB' || cieStatuses.cie5.has('SUBMITTED') || cieStatuses.cie5.has('APPROVED'),
+                }).some(v => v);
+                setIsLocked(anyCieLocked);
 
                 setMarks(newMarks);
             }
@@ -1082,28 +1362,47 @@ const FacultyDashboard = () => {
             showToast('Please select a subject first', 'error');
             return;
         }
-
-        const reason = await showPrompt({
-            title: 'Request Edit Access',
-            message: `Why do you need to edit the approved marks for ${selectedSubject.name}?\n\nThis request will be sent to HOD for approval.`,
-            inputLabel: 'Reason',
-            placeholder: 'Enter your reason...',
-            confirmText: 'Send Request'
-        });
-
-        if (reason === null) return; // User clicked Cancel
-
-        if (!reason || reason.trim() === '') {
-            showToast('Please provide a reason for your edit request', 'error');
-            return;
-        }
-
-        showToast(`Edit request sent to HOD for ${selectedSubject.name}`);
+        setUnlockReason('');
+        setUnlockSelectedCies([]);
+        setShowUnlockModal(true);
     };
 
+    const submitUnlockRequest = async () => {
+        if (unlockSelectedCies.length === 0) {
+            showToast('Please select at least one CIE to unlock', 'error');
+            return;
+        }
+        if (!unlockReason || unlockReason.trim() === '') {
+            showToast('Please provide a reason for your unlock request', 'error');
+            return;
+        }
+        
+        setSaving(true);
+        try {
+            const cieTypesStr = unlockSelectedCies.join(',');
+            const res = await authenticatedFetch(`${API_BASE_URL}/marks/unlock-request`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    subjectId: selectedSubject.id,
+                    cieTypes: cieTypesStr,
+                    reason: unlockReason.trim()
+                })
+            });
 
-
-
+            if (res.ok) {
+                showToast(`Unlock request sent to HOD for ${cieTypesStr}`, 'success');
+                setShowUnlockModal(false);
+            } else {
+                const err = await res.text();
+                showToast('Failed to send unlock request: ' + err, 'error');
+            }
+        } catch (e) {
+            console.error('Failed to send unlock request', e);
+            showToast('Failed to send unlock request', 'error');
+        } finally {
+            setSaving(false);
+        }
+    };
     const togglePreview = () => {
         setShowPreview(!showPreview);
     };
@@ -2530,41 +2829,48 @@ const FacultyDashboard = () => {
                                 </select>
                             </div>
                         )}
+                        {/* CIE Lock Status Badges */}
+                        {isLocked && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                {['cie1', 'cie2', 'cie3', 'cie4', 'cie5'].map(key => (
+                                    <span key={key} style={{
+                                        fontSize: '0.7rem',
+                                        padding: '2px 8px',
+                                        borderRadius: '10px',
+                                        fontWeight: 600,
+                                        background: cieLockStatus[key] ? '#fef2f2' : '#f0fdf4',
+                                        color: cieLockStatus[key] ? '#dc2626' : '#15803d',
+                                        border: `1px solid ${cieLockStatus[key] ? '#fca5a5' : '#86efac'}`
+                                    }}>
+                                        {cieLockStatus[key] ? '🔒' : '✏️'} {key.replace('cie', 'CIE-')}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <div className={styles.headerActions}>
                         <div className={styles.actionButtons}>
 
 
-                            <button className={styles.secondaryBtn} onClick={togglePreview} title="Preview Report">
-                                <FileText size={16} /> Preview
+                            <button className={`${styles.saveBtn} ${saving ? styles.saving : ''}`} onClick={handleSave} disabled={saving}>
+                                <Save size={16} />
+                                {saving ? 'Saving...' : 'Save Draft'}
                             </button>
 
-                            {!isLocked ? (
-                                <>
-                                    <button className={`${styles.saveBtn} ${saving ? styles.saving : ''}`} onClick={handleSave} disabled={saving}>
-                                        <Save size={16} />
-                                        {saving ? 'Saving...' : 'Save Draft'}
-                                    </button>
+                            <button className={styles.saveBtn} onClick={handleSubmitForApproval} disabled={saving} style={{ backgroundColor: '#059669' }}>
+                                <CheckCircle size={16} /> Submit to HOD
+                            </button>
 
-                                    <button className={styles.saveBtn} onClick={handleSubmitForApproval} disabled={saving} style={{ backgroundColor: '#059669' }}>
-                                        <CheckCircle size={16} /> Submit to HOD
-                                    </button>
-                                </>
-                            ) : (
-                                <>
-                                    <button className={styles.secondaryBtn} disabled style={{ cursor: 'not-allowed', color: '#6b7280', borderColor: '#d1d5db' }}>
-                                        <Lock size={16} /> Marks Locked
-                                    </button>
-                                    <button
-                                        className={styles.saveBtn}
-                                        onClick={handleEditRequest}
-                                        style={{ backgroundColor: '#f59e0b', color: 'white' }}
-                                        title="Request permission from HOD to edit these marks"
-                                    >
-                                        <Edit size={16} /> Request Edit
-                                    </button>
-                                </>
+                            {isLocked && (
+                                <button
+                                    className={styles.saveBtn}
+                                    onClick={handleEditRequest}
+                                    style={{ backgroundColor: '#f59e0b', color: 'white' }}
+                                    title="Request HOD to unlock approved marks for editing"
+                                >
+                                    <Lock size={16} /> Request Unlock
+                                </button>
                             )}
 
                             <button className={`${styles.saveBtn}`} onClick={downloadCSV} style={{ backgroundColor: '#4b5563' }}>
@@ -2577,9 +2883,9 @@ const FacultyDashboard = () => {
                         </div>
                     </div>
                 </div>
-
-
-
+                <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1rem', background: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', borderLeft: '4px solid #3b82f6' }}>
+                    <strong>ℹ️ Max Marks Info:</strong> Each CIE is for <strong>50 marks</strong>. Total Internal marks: <strong>250</strong>. Attendance is recorded as percentage (<strong>0-100%</strong>).
+                </p>
 
                 <div className={styles.card}>
                     <div className={styles.tableContainer}>
@@ -2613,172 +2919,20 @@ const FacultyDashboard = () => {
                                             const facultySectionMatch = facultySections.length === 0 || facultySections.includes(s.section);
                                             return subjectMatch && sectionMatch && facultySectionMatch;
                                         })
-                                        .map((student, index) => {
-                                            const sMarks = marks[student.id] || {};
-                                            const ia1Mark = sMarks['CIE1'] || {};
-
-                                            const valCIE1 = sMarks.cie1 !== undefined ? sMarks.cie1 : (ia1Mark.cie1Score != null ? ia1Mark.cie1Score : '');
-                                            const valCIE2 = sMarks.cie2 !== undefined ? sMarks.cie2 : (ia1Mark.cie2Score != null ? ia1Mark.cie2Score : '');
-                                            const valCIE3 = sMarks.cie3 !== undefined ? sMarks.cie3 : '';
-                                            const valCIE4 = sMarks.cie4 !== undefined ? sMarks.cie4 : '';
-                                            const valCIE5 = sMarks.cie5 !== undefined ? sMarks.cie5 : '';
-
-                                            const renderAttendanceCell = (cieKey) => {
-                                                if (selectedCieType !== cieKey && selectedCieType !== 'all') return null;
-                                                const attField = cieKey + 'Att';
-                                                return (
-                                                    <td style={{ background: '#f0fdf4' }}>
-                                                        <input
-                                                            type="number"
-                                                            className={styles.markInput}
-                                                            value={sMarks[attField] !== undefined ? sMarks[attField] : ''}
-                                                            onChange={(e) => handleMarkChange(student.id, attField, e.target.value)}
-                                                            placeholder=""
-                                                            min="0"
-                                                            max="100"
-                                                            disabled={cieLockStatus[cieKey]}
-                                                            style={{ background: cieLockStatus[cieKey] ? '#e5e7eb' : '#f0fdf4', border: '1px solid #86efac' }}
-                                                        />
-                                                    </td>
-                                                );
-                                            };
-
-                                            return (
-                                                <tr key={student.id}>
-                                                    <td>{index + 1}</td>
-                                                    <td style={{ whiteSpace: 'nowrap' }}>{student.rollNo || student.regNo}</td>
-                                                    <td style={{ whiteSpace: 'nowrap' }}>{student.name}</td>
-                                                    <td style={['cie1', 'all'].includes(selectedCieType) ? { background: '#eff6ff' } : {}}>
-                                                        <input
-                                                            type="number"
-                                                            className={styles.markInput}
-                                                            value={valCIE1}
-                                                            onChange={(e) => handleMarkChange(student.id, 'cie1', e.target.value)}
-                                                            onFocus={() => { if (selectedCieType !== 'all') setSelectedCieType('cie1') }}
-                                                            placeholder=""
-                                                            disabled={cieLockStatus.cie1}
-                                                            style={cieLockStatus.cie1 ? { background: '#e5e7eb', cursor: 'not-allowed' } : {}}
-                                                        />
-                                                    </td>
-                                                    {renderAttendanceCell('cie1')}
-                                                    <td style={['cie2', 'all'].includes(selectedCieType) ? { background: '#eff6ff' } : {}}>
-                                                        <input
-                                                            type="number"
-                                                            className={styles.markInput}
-                                                            value={valCIE2}
-                                                            onChange={(e) => handleMarkChange(student.id, 'cie2', e.target.value)}
-                                                            onFocus={() => { if (selectedCieType !== 'all') setSelectedCieType('cie2') }}
-                                                            placeholder=""
-                                                            disabled={cieLockStatus.cie2}
-                                                            style={cieLockStatus.cie2 ? { background: '#e5e7eb', cursor: 'not-allowed' } : {}}
-                                                        />
-                                                    </td>
-                                                    {renderAttendanceCell('cie2')}
-                                                    <td style={['cie3', 'all'].includes(selectedCieType) ? { background: '#eff6ff' } : {}}>
-                                                        <input
-                                                            type="number"
-                                                            className={styles.markInput}
-                                                            value={valCIE3}
-                                                            onChange={(e) => handleMarkChange(student.id, 'cie3', e.target.value)}
-                                                            onFocus={() => { if (selectedCieType !== 'all') setSelectedCieType('cie3') }}
-                                                            placeholder=""
-                                                            disabled={cieLockStatus.cie3}
-                                                            style={cieLockStatus.cie3 ? { background: '#e5e7eb', cursor: 'not-allowed' } : {}}
-                                                        />
-                                                    </td>
-                                                    {renderAttendanceCell('cie3')}
-                                                    <td style={['cie4', 'all'].includes(selectedCieType) ? { background: '#eff6ff' } : {}}>
-                                                        <input
-                                                            type="number"
-                                                            className={styles.markInput}
-                                                            value={valCIE4}
-                                                            onChange={(e) => handleMarkChange(student.id, 'cie4', e.target.value)}
-                                                            onFocus={() => { if (selectedCieType !== 'all') setSelectedCieType('cie4') }}
-                                                            placeholder=""
-                                                            disabled={cieLockStatus.cie4}
-                                                            style={cieLockStatus.cie4 ? { background: '#e5e7eb', cursor: 'not-allowed' } : {}}
-                                                        />
-                                                    </td>
-                                                    {renderAttendanceCell('cie4')}
-                                                    <td style={['cie5', 'all'].includes(selectedCieType) ? { background: '#eff6ff' } : {}}>
-                                                        <input
-                                                            type="number"
-                                                            className={styles.markInput}
-                                                            value={valCIE5}
-                                                            onChange={(e) => handleMarkChange(student.id, 'cie5', e.target.value)}
-                                                            onFocus={() => { if (selectedCieType !== 'all') setSelectedCieType('cie5') }}
-                                                            placeholder=""
-                                                            disabled={cieLockStatus.cie5}
-                                                            style={cieLockStatus.cie5 ? { background: '#e5e7eb', cursor: 'not-allowed' } : {}}
-                                                        />
-                                                    </td>
-                                                    {renderAttendanceCell('cie5')}
-                                                    <td style={{ fontWeight: 'bold' }}>{calculateAverage(student)}</td>
-                                                    {(() => {
-                                                        const getCieRemark = (key, label) => {
-                                                            const v = sMarks[key] !== undefined && sMarks[key] !== '' ? parseFloat(sMarks[key]) : null;
-                                                            const a = sMarks[key + 'Att'] !== undefined && sMarks[key + 'Att'] !== '' ? parseFloat(sMarks[key + 'Att']) : null;
-                                                            if (v == null || isNaN(v) || a == null || isNaN(a)) return null;
-
-                                                            return {
-                                                                label,
-                                                                lowMarks: v < 25,
-                                                                lowAtt: a < 75,
-                                                                excellent: v >= 40 && a >= 75,
-                                                                severity: (v < 25 && a < 75) ? 3 : (v < 25 ? 2 : (a < 75 ? 2 : 0)),
-                                                                text: (v < 25 && a < 75) ? `${label}: Low Marks, Low Att` :
-                                                                    (v < 25 ? `${label}: Low Marks` :
-                                                                        (a < 75 ? `${label}: Low Att` :
-                                                                            (v >= 40 && a >= 75 ? `${label}: Excellent` : `${label}: Good`)))
-                                                            };
-                                                        };
-                                                        const allCies = [
-                                                            getCieRemark('cie1', 'CIE-1'), getCieRemark('cie2', 'CIE-2'),
-                                                            getCieRemark('cie3', 'CIE-3'), getCieRemark('cie4', 'CIE-4'),
-                                                            getCieRemark('cie5', 'CIE-5')
-                                                        ];
-                                                        const filled = allCies.filter(r => r !== null);
-
-                                                        // If all is selected, show combined remarks for filled ones.
-                                                        if (selectedCieType === 'all' && filled.length > 0) {
-                                                            const worst = Math.max(...filled.map(r => r.severity));
-                                                            const color = worst >= 3 ? '#dc2626' : worst >= 2 ? '#ea580c' : '#15803d';
-                                                            const bg = worst >= 3 ? '#fef2f2' : worst >= 2 ? '#fff7ed' : '#f0fdf4';
-
-                                                            const lowMarksCies = filled.filter(r => r.lowMarks).map(r => r.label);
-                                                            const lowAttCies = filled.filter(r => r.lowAtt).map(r => r.label);
-
-                                                            let textParts = [];
-                                                            if (lowMarksCies.length > 0) {
-                                                                textParts.push(`${lowMarksCies.join(',')} Low Marks`);
-                                                            }
-                                                            if (lowAttCies.length > 0) {
-                                                                textParts.push(`${lowAttCies.join(',')} Low Att`);
-                                                            }
-                                                            if (textParts.length === 0) {
-                                                                const allExcellent = filled.every(r => r.excellent);
-                                                                textParts.push(allExcellent ? 'All Excellent' : 'All Good');
-                                                            }
-                                                            const text = textParts.join(' | ');
-                                                            return <td style={{ width: '250px', minWidth: '250px', padding: '8px 4px', background: bg }}>
-                                                                <div style={{ fontSize: '0.65rem', fontWeight: 600, color, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.4' }}>{text}</div>
-                                                            </td>;
-                                                        } else if (selectedCieType === 'all' && filled.length === 0) {
-                                                            return <td style={{ width: '250px', minWidth: '250px', padding: 0 }}><div style={{ fontSize: '0.72rem', color: '#94a3b8', padding: '8px 4px' }}>-</div></td>;
-                                                        }
-
-                                                        // Otherwise show focused CIE's remark
-                                                        const focused = getCieRemark(selectedCieType, selectedCieType.replace('cie', 'CIE-'));
-                                                        if (!focused) return <td style={{ width: '250px', minWidth: '250px', padding: 0 }}><div style={{ fontSize: '0.72rem', color: '#94a3b8', padding: '8px 4px' }}>-</div></td>;
-                                                        const color = focused.severity >= 3 ? '#dc2626' : focused.severity >= 2 ? '#ea580c' : focused.severity === 0 ? '#15803d' : '#2563eb';
-                                                        const bg = focused.severity >= 3 ? '#fef2f2' : focused.severity >= 2 ? '#fff7ed' : '#f0fdf4';
-                                                        return <td style={{ width: '250px', minWidth: '250px', padding: '8px 4px', background: bg }}>
-                                                            <div style={{ fontSize: '0.72rem', fontWeight: 600, color, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.4' }}>{focused.text}</div>
-                                                        </td>;
-                                                    })()}
-                                                </tr>
-                                            )
-                                        })}
+                                        .map((student, index) => (
+                                            <FacultyStudentRow
+                                                key={student.id}
+                                                student={student}
+                                                index={index}
+                                                marks={marks[student.id] || {}}
+                                                selectedCieType={selectedCieType}
+                                                setSelectedCieType={setSelectedCieType}
+                                                styles={styles}
+                                                handleMarkChange={handleMarkChange}
+                                                cieLockStatus={cieLockStatus}
+                                                calculateAverage={calculateAverage}
+                                            />
+                                        ))}
                                 </tbody>
                             </table>
                         </div>
@@ -4578,6 +4732,69 @@ const FacultyDashboard = () => {
                 </div>
             )}
 
+
+            {showUnlockModal && (
+                <div className={styles.modalOverlay}>
+                    <div className={styles.modalContent} style={{ maxWidth: '500px' }}>
+                        <div className={styles.modalHeader}>
+                            <h3>Request Unlock from HOD</h3>
+                            <button className={styles.closeBtn} onClick={() => setShowUnlockModal(false)}><X size={24} /></button>
+                        </div>
+                        <div className={styles.modalBody}>
+                            <p style={{ marginBottom: '1rem', color: '#475569' }}>
+                                Select the CIEs you need to unlock for <strong>{selectedSubject?.name}</strong>:
+                            </p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                                {['CIE1', 'CIE2', 'CIE3', 'CIE4', 'CIE5'].map(cie => {
+                                    const isLocked = cieLockStatus[cie.toLowerCase()];
+                                    return (
+                                        <div key={cie} style={{ 
+                                            padding: '0.75rem', 
+                                            border: '1px solid #e2e8f0', 
+                                            borderRadius: '8px',
+                                            background: isLocked ? '#fff' : '#f8fafc',
+                                            display: 'flex', alignItems: 'center', gap: '8px',
+                                            opacity: isLocked ? 1 : 0.5
+                                        }}>
+                                            <input 
+                                                type="checkbox" 
+                                                id={`unlock-${cie}`}
+                                                disabled={!isLocked}
+                                                checked={unlockSelectedCies.includes(cie)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setUnlockSelectedCies(prev => [...prev, cie]);
+                                                    else setUnlockSelectedCies(prev => prev.filter(c => c !== cie));
+                                                }}
+                                                style={{ width: '16px', height: '16px', cursor: isLocked ? 'pointer' : 'not-allowed' }}
+                                            />
+                                            <label htmlFor={`unlock-${cie}`} style={{ cursor: isLocked ? 'pointer' : 'not-allowed', margin: 0, fontWeight: 500 }}>
+                                                {cie.replace('CIE', 'CIE-')}
+                                                {!isLocked && <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginLeft: '6px' }}>(Editable)</span>}
+                                            </label>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div className={styles.formGroup}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Reason for Unlock *</label>
+                                <textarea 
+                                    value={unlockReason}
+                                    onChange={(e) => setUnlockReason(e.target.value)}
+                                    placeholder="Explain why you need these marks unlocked..."
+                                    className={styles.input}
+                                    style={{ minHeight: '100px', resize: 'vertical', width: '100%' }}
+                                />
+                            </div>
+                        </div>
+                        <div className={styles.modalFooter} style={{ padding: '1.5rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '1rem', background: '#f8fafc', borderRadius: '0 0 12px 12px' }}>
+                            <button className={styles.secondaryBtn} onClick={() => setShowUnlockModal(false)}>Cancel</button>
+                            <button className={styles.primaryBtn} onClick={submitUnlockRequest} disabled={saving}>
+                                {saving ? <><Loader.Pulse size={16} /> Sending...</> : 'Send Request'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {renderFeedbackModal()}
             {renderEditStudentModal()}

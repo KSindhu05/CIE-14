@@ -46,6 +46,217 @@ const parseSubjects = (subjects) => {
     return [];
 };
 
+const DebouncedInput = ({ value, onChange, max, style, className }) => {
+    const [localValue, setLocalValue] = useState(value);
+
+    useEffect(() => {
+        setLocalValue(value);
+    }, [value]);
+
+    const handleBlur = () => {
+        if (localValue !== value) {
+            onChange(localValue);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            handleBlur();
+            moveFocus(e.target, 1);
+        } else if (e.key === 'ArrowDown') {
+            moveFocus(e.target, 1);
+            e.preventDefault();
+        } else if (e.key === 'ArrowUp') {
+            moveFocus(e.target, -1);
+            e.preventDefault();
+        }
+    };
+
+    const moveFocus = (target, direction) => {
+        const td = target.closest('td');
+        if (!td) return;
+        const tr = td.closest('tr');
+        if (!tr) return;
+        const cellIndex = Array.from(tr.children).indexOf(td);
+        
+        const nextTr = direction === 1 ? tr.nextElementSibling : tr.previousElementSibling;
+        if (nextTr) {
+            const nextTd = nextTr.children[cellIndex];
+            if (nextTd) {
+                const nextInput = nextTd.querySelector('input');
+                if (nextInput && !nextInput.disabled) {
+                    nextInput.focus();
+                    nextInput.select();
+                }
+            }
+        }
+    };
+
+    const handleChange = (e) => {
+        let val = e.target.value;
+        if (val === 'Ab') {
+            setLocalValue(val);
+            return;
+        }
+        
+        if (val === '') {
+            setLocalValue('');
+            return;
+        }
+
+        let num = parseInt(val, 10);
+        if (isNaN(num)) return;
+
+        if (num < 0) num = 0;
+        if (max && num > max) num = max;
+        
+        setLocalValue(num.toString());
+    };
+
+    return (
+        <input
+            type="number"
+            className={className}
+            style={style}
+            value={localValue === null || localValue === undefined ? '' : localValue}
+            max={max}
+            min="0"
+            onChange={handleChange}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+        />
+    );
+};
+
+const HODStudentRow = React.memo(({ student, index, editMark, selectedCieType, styles, handleMarkChange }) => {
+    const valCIE1 = (editMark.cie1 !== undefined && editMark.cie1 !== null) ? editMark.cie1 : '';
+    const valCIE2 = (editMark.cie2 !== undefined && editMark.cie2 !== null) ? editMark.cie2 : '';
+    const valCIE3 = (editMark.cie3 !== undefined && editMark.cie3 !== null) ? editMark.cie3 : '';
+    const valCIE4 = (editMark.cie4 !== undefined && editMark.cie4 !== null) ? editMark.cie4 : '';
+    const valCIE5 = (editMark.cie5 !== undefined && editMark.cie5 !== null) ? editMark.cie5 : '';
+    const att1Val = (editMark.cie1Att !== undefined && editMark.cie1Att !== null) ? editMark.cie1Att : '';
+    const att2Val = (editMark.cie2Att !== undefined && editMark.cie2Att !== null) ? editMark.cie2Att : '';
+    const att3Val = (editMark.cie3Att !== undefined && editMark.cie3Att !== null) ? editMark.cie3Att : '';
+    const att4Val = (editMark.cie4Att !== undefined && editMark.cie4Att !== null) ? editMark.cie4Att : '';
+    const att5Val = (editMark.cie5Att !== undefined && editMark.cie5Att !== null) ? editMark.cie5Att : '';
+    const total = (Number(valCIE1) || 0) + (Number(valCIE2) || 0) + (Number(valCIE3) || 0) + (Number(valCIE4) || 0) + (Number(valCIE5) || 0);
+    const cieVals = [
+        { key: 'CIE-1', val: valCIE1, att: att1Val !== '' ? parseFloat(att1Val) : null },
+        { key: 'CIE-2', val: valCIE2, att: att2Val !== '' ? parseFloat(att2Val) : null },
+        { key: 'CIE-3', val: valCIE3, att: att3Val !== '' ? parseFloat(att3Val) : null },
+        { key: 'CIE-4', val: valCIE4, att: att4Val !== '' ? parseFloat(att4Val) : null },
+        { key: 'CIE-5', val: valCIE5, att: att5Val !== '' ? parseFloat(att5Val) : null }
+    ];
+    const parts = []; let worstColor = '#94a3b8'; let worstBg = 'transparent';
+    cieVals.forEach(c => {
+        const v = c.val !== '' && c.val !== null && c.val !== undefined ? parseFloat(c.val) : null;
+        const att = c.att;
+        if (v == null) return;
+        if (v < 25 && att != null && att < 75) {
+            parts.push(`${c.key}: Low Marks, Low Att`); worstColor = '#dc2626'; worstBg = '#fef2f2';
+        } else if (v < 25) {
+            parts.push(`${c.key}: Low Marks`);
+            if (worstColor !== '#dc2626') { worstColor = '#ea580c'; worstBg = '#fff7ed'; }
+        } else if (att != null && att < 75) {
+            if (!parts.some(p => p.includes('Low Att'))) { parts.push('Low Att'); }
+            if (worstColor !== '#dc2626') { worstColor = '#ea580c'; worstBg = '#fff7ed'; }
+        }
+    });
+
+    return (<tr key={student.id}><td>{index + 1}</td><td style={{ width: '150px', minWidth: '150px', fontWeight: 600 }}>{student.regNo}</td><td style={{ width: '350px', minWidth: '350px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '350px', fontWeight: 500 }} title={student.name}>{student.name}</td>
+        {['cie1', 'all'].includes(selectedCieType) && <td style={['cie1', 'all'].includes(selectedCieType) && selectedCieType !== 'all' ? { background: '#f8fafc' } : {}}><DebouncedInput className={styles.markInput} value={valCIE1} max={50} onChange={(newVal) => handleMarkChange(student.id, 'cie1', newVal)} /></td>}
+        {['cie1', 'all'].includes(selectedCieType) && <td style={{ background: '#f0fdf4' }}><DebouncedInput className={styles.markInput} style={{ border: '1px solid #86efac', color: '#15803d', background: '#f0fdf4' }} value={att1Val} max={100} onChange={(newVal) => handleMarkChange(student.id, 'cie1Att', newVal)} /></td>}
+        {['cie2', 'all'].includes(selectedCieType) && <td style={['cie2', 'all'].includes(selectedCieType) && selectedCieType !== 'all' ? { background: '#f8fafc' } : {}}><DebouncedInput className={styles.markInput} value={valCIE2} max={50} onChange={(newVal) => handleMarkChange(student.id, 'cie2', newVal)} /></td>}
+        {['cie2', 'all'].includes(selectedCieType) && <td style={{ background: '#f0fdf4' }}><DebouncedInput className={styles.markInput} style={{ border: '1px solid #86efac', color: '#15803d', background: '#f0fdf4' }} value={att2Val} max={100} onChange={(newVal) => handleMarkChange(student.id, 'cie2Att', newVal)} /></td>}
+        {['cie3', 'all'].includes(selectedCieType) && <td style={['cie3', 'all'].includes(selectedCieType) && selectedCieType !== 'all' ? { background: '#f8fafc' } : {}}><DebouncedInput className={styles.markInput} value={valCIE3} max={50} onChange={(newVal) => handleMarkChange(student.id, 'cie3', newVal)} /></td>}
+        {['cie3', 'all'].includes(selectedCieType) && <td style={{ background: '#f0fdf4' }}><DebouncedInput className={styles.markInput} style={{ border: '1px solid #86efac', color: '#15803d', background: '#f0fdf4' }} value={att3Val} max={100} onChange={(newVal) => handleMarkChange(student.id, 'cie3Att', newVal)} /></td>}
+        {['cie4', 'all'].includes(selectedCieType) && <td style={['cie4', 'all'].includes(selectedCieType) && selectedCieType !== 'all' ? { background: '#f8fafc' } : {}}><DebouncedInput className={styles.markInput} value={valCIE4} max={50} onChange={(newVal) => handleMarkChange(student.id, 'cie4', newVal)} /></td>}
+        {['cie4', 'all'].includes(selectedCieType) && <td style={{ background: '#f0fdf4' }}><DebouncedInput className={styles.markInput} style={{ border: '1px solid #86efac', color: '#15803d', background: '#f0fdf4' }} value={att4Val} max={100} onChange={(newVal) => handleMarkChange(student.id, 'cie4Att', newVal)} /></td>}
+        {['cie5', 'all'].includes(selectedCieType) && <td style={['cie5', 'all'].includes(selectedCieType) && selectedCieType !== 'all' ? { background: '#f8fafc' } : {}}><DebouncedInput className={styles.markInput} value={valCIE5} max={50} onChange={(newVal) => handleMarkChange(student.id, 'cie5', newVal)} /></td>}
+        {['cie5', 'all'].includes(selectedCieType) && <td style={{ background: '#f0fdf4' }}><DebouncedInput className={styles.markInput} style={{ border: '1px solid #86efac', color: '#15803d', background: '#f0fdf4' }} value={att5Val} max={100} onChange={(newVal) => handleMarkChange(student.id, 'cie5Att', newVal)} /></td>}
+
+        <td style={{ fontWeight: 'bold' }}>{Math.min(total, 250)}</td>
+
+        {(() => {
+            const getCieRemark = (v, a, label) => {
+                if (v == null || isNaN(v) || a == null || isNaN(a)) return null;
+                return {
+                    label,
+                    lowMarks: v < 25,
+                    lowAtt: a < 75,
+                    excellent: v >= 40 && a >= 75,
+                    severity: (v < 25 && a < 75) ? 3 : (v < 25 ? 2 : (a < 75 ? 2 : 0)),
+                    text: (v < 25 && a < 75) ? `${label}: Low Marks, Low Att` :
+                        (v < 25 ? `${label}: Low Marks` :
+                            (a < 75 ? `${label}: Low Att` :
+                                (v >= 40 && a >= 75 ? `${label}: Excellent` : `${label}: Good`)))
+                };
+            };
+
+            const allCies = [
+                getCieRemark(valCIE1 !== '' ? parseFloat(valCIE1) : null, att1Val !== '' ? parseFloat(att1Val) : null, 'CIE-1'),
+                getCieRemark(valCIE2 !== '' ? parseFloat(valCIE2) : null, att2Val !== '' ? parseFloat(att2Val) : null, 'CIE-2'),
+                getCieRemark(valCIE3 !== '' ? parseFloat(valCIE3) : null, att3Val !== '' ? parseFloat(att3Val) : null, 'CIE-3'),
+                getCieRemark(valCIE4 !== '' ? parseFloat(valCIE4) : null, att4Val !== '' ? parseFloat(att4Val) : null, 'CIE-4'),
+                getCieRemark(valCIE5 !== '' ? parseFloat(valCIE5) : null, att5Val !== '' ? parseFloat(att5Val) : null, 'CIE-5')
+            ];
+            const filled = allCies.filter(r => r !== null);
+
+            if (selectedCieType === 'all' && filled.length > 0) {
+                const worst = Math.max(...filled.map(r => r.severity));
+                const color = worst >= 3 ? '#dc2626' : worst >= 2 ? '#ea580c' : '#15803d';
+                const bg = worst >= 3 ? '#fef2f2' : worst >= 2 ? '#fff7ed' : '#f0fdf4';
+
+                const lowMarksCies = filled.filter(r => r.lowMarks).map(r => r.label);
+                const lowAttCies = filled.filter(r => r.lowAtt).map(r => r.label);
+
+                let textParts = [];
+                if (lowMarksCies.length > 0) textParts.push(`${lowMarksCies.join(',')} Low Marks`);
+                if (lowAttCies.length > 0) textParts.push(`${lowAttCies.join(',')} Low Att`);
+                if (textParts.length === 0) {
+                    const allExcellent = filled.every(r => r.excellent);
+                    textParts.push(allExcellent ? 'All Excellent' : 'All Good');
+                }
+                const text = textParts.join(' | ');
+                return <td style={{ width: '250px', minWidth: '250px', padding: '8px 4px', background: bg }}>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 600, color, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.4' }}>{text}</div>
+                </td>;
+            } else if (selectedCieType === 'all') {
+                return <td style={{ width: '250px', minWidth: '250px', padding: 0 }}><div style={{ fontSize: '0.72rem', color: '#94a3b8', padding: '8px 4px' }}>-</div></td>;
+            }
+
+            const focused = getCieRemark(
+                selectedCieType === 'cie1' ? (valCIE1 !== '' ? parseFloat(valCIE1) : null) :
+                selectedCieType === 'cie2' ? (valCIE2 !== '' ? parseFloat(valCIE2) : null) :
+                selectedCieType === 'cie3' ? (valCIE3 !== '' ? parseFloat(valCIE3) : null) :
+                selectedCieType === 'cie4' ? (valCIE4 !== '' ? parseFloat(valCIE4) : null) :
+                (valCIE5 !== '' ? parseFloat(valCIE5) : null),
+                
+                selectedCieType === 'cie1' ? (att1Val !== '' ? parseFloat(att1Val) : null) :
+                selectedCieType === 'cie2' ? (att2Val !== '' ? parseFloat(att2Val) : null) :
+                selectedCieType === 'cie3' ? (att3Val !== '' ? parseFloat(att3Val) : null) :
+                selectedCieType === 'cie4' ? (att4Val !== '' ? parseFloat(att4Val) : null) :
+                (att5Val !== '' ? parseFloat(att5Val) : null),
+                
+                selectedCieType.replace('cie', 'CIE-')
+            );
+            if (!focused) return <td style={{ width: '250px', minWidth: '250px', padding: 0 }}><div style={{ fontSize: '0.72rem', color: '#94a3b8', padding: '8px 4px' }}>-</div></td>;
+            const color = focused.severity >= 3 ? '#dc2626' : focused.severity >= 2 ? '#ea580c' : focused.severity === 0 ? '#15803d' : '#2563eb';
+            const bg = focused.severity >= 3 ? '#fef2f2' : focused.severity >= 2 ? '#fff7ed' : '#f0fdf4';
+            return <td style={{ width: '250px', minWidth: '250px', padding: '8px 4px', background: bg }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, color, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.4' }}>{focused.text}</div>
+            </td>;
+        })()}
+    </tr>);
+}, (prev, next) => {
+    return prev.student.id === next.student.id &&
+        prev.index === next.index &&
+        prev.editMark === next.editMark &&
+        prev.selectedCieType === next.selectedCieType &&
+        prev.styles === next.styles &&
+        prev.handleMarkChange === next.handleMarkChange;
+});
+
 const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
     const { user } = useAuth();
     const { showConfirm, showPrompt } = useDialog();
@@ -319,7 +530,16 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
         { label: 'Student Management', path: '#student-mgmt', icon: <UserPlus size={20} />, isActive: activeTab === 'student-mgmt', onClick: () => setActiveTab('student-mgmt') },
         { label: 'IA Approval Panel', path: '#approvals', icon: <CheckCircle size={20} />, isActive: activeTab === 'approvals', onClick: () => setActiveTab('approvals'), badge: pendingApprovals.length || null },
         { label: 'Update Marks', path: '#marks', icon: <PenTool size={20} />, isActive: activeTab === 'update-marks', onClick: () => { setSelectedSubject(null); setSelectedSemester('all'); setActiveTab('update-marks'); } },
-        { label: 'Notifications', path: '#notifications', icon: <Bell size={20} />, isActive: activeTab === 'notifications', onClick: () => setActiveTab('notifications'), badge: unreadCount || null },
+        { label: 'Notifications', path: '#notifications', icon: <Bell size={20} />, isActive: activeTab === 'notifications', onClick: async () => {
+            setActiveTab('notifications');
+            setUnreadCount(0);
+            setNotifications(prev => prev.map(n => ({...n, isRead: true})));
+            try {
+                await authenticatedFetch(`${API_BASE_URL}/notifications/read-all`, { method: 'POST' });
+            } catch (e) {
+                console.error("Failed to mark all as read", e);
+            }
+        }, badge: unreadCount || null },
     ];
 
 
@@ -551,7 +771,10 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
         }
     };
 
-    // Fetch pending approvals globally to display badge
+    const [unlockRequests, setUnlockRequests] = useState([]);
+    const [unlockRequestsLoading, setUnlockRequestsLoading] = useState(false);
+
+    // Fetch pending approvals and unlock requests globally to display badges
     useEffect(() => {
         if (isMyDept && selectedDept) {
             const fetchPendingApprovals = async () => {
@@ -593,7 +816,23 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                     setApprovalLoading(false);
                 }
             };
+            
+            const fetchUnlockRequests = async () => {
+                setUnlockRequestsLoading(true);
+                try {
+                    const response = await authenticatedFetch(`${API_BASE_URL}/marks/unlock-requests/pending?department=${selectedDept}`);
+                    if (response.ok) {
+                        setUnlockRequests(await response.json());
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch unlock requests", e);
+                } finally {
+                    setUnlockRequestsLoading(false);
+                }
+            };
+
             fetchPendingApprovals();
+            fetchUnlockRequests();
         }
     }, [isMyDept, selectedDept, user?.token]);
 
@@ -999,6 +1238,62 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
         } catch (e) {
             console.error(e);
             showToast('Error rejecting marks', 'error');
+        }
+    };
+
+    const handleApproveUnlockRequest = async (requestId) => {
+        const confirmed = await showConfirm({
+            title: 'Approve Unlock Request',
+            message: 'Are you sure you want to approve this unlock request?',
+            variant: 'info',
+            confirmText: 'Approve'
+        });
+        if (!confirmed) return;
+        setUnlockRequestsLoading(true);
+        try {
+            const response = await authenticatedFetch(`${API_BASE_URL}/marks/unlock-requests/${requestId}/approve`, {
+                method: 'POST'
+            });
+            if (response.ok) {
+                showToast('Unlock request approved! Faculty can now edit those marks.', 'success');
+                setUnlockRequests(prev => prev.filter(r => r.id !== requestId));
+            } else {
+                const err = await response.text();
+                showToast('Failed to approve request: ' + err, 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            showToast('Error approving request', 'error');
+        } finally {
+            setUnlockRequestsLoading(false);
+        }
+    };
+
+    const handleRejectUnlockRequest = async (requestId) => {
+        const confirmed = await showConfirm({
+            title: 'Reject Unlock Request',
+            message: 'Are you sure you want to reject this unlock request?',
+            variant: 'danger',
+            confirmText: 'Reject'
+        });
+        if (!confirmed) return;
+        setUnlockRequestsLoading(true);
+        try {
+            const response = await authenticatedFetch(`${API_BASE_URL}/marks/unlock-requests/${requestId}/reject`, {
+                method: 'POST'
+            });
+            if (response.ok) {
+                showToast('Unlock request rejected.', 'success');
+                setUnlockRequests(prev => prev.filter(r => r.id !== requestId));
+            } else {
+                const err = await response.text();
+                showToast('Failed to reject request: ' + err, 'error');
+            }
+        } catch (e) {
+            console.error(e);
+            showToast('Error rejecting request', 'error');
+        } finally {
+            setUnlockRequestsLoading(false);
         }
     };
 
@@ -2300,127 +2595,17 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                                 {['cie4', 'all'].includes(selectedCieType) && <th style={{ background: '#f0fdf4', color: '#15803d' }}>Att (%)</th>}
                                 {['cie5', 'all'].includes(selectedCieType) && <th style={['cie5', 'all'].includes(selectedCieType) ? { background: '#eff6ff', color: '#1d4ed8' } : {}}>CIE-5 (50)</th>}
                                 {['cie5', 'all'].includes(selectedCieType) && <th style={{ background: '#f0fdf4', color: '#15803d' }}>Att (%)</th>}
-                                <th>Total (250)</th><th style={{ background: '#fefce8', color: '#a16207', width: '250px', minWidth: '250px' }}>Remarks</th></tr></thead><tbody>{students.filter(s => selectedSemester === 'all' || s.semester == selectedSemester).map((student, index) => {
-                                    const editMark = editingMarks[student.id] || {};
-                                    const valCIE1 = (editMark.cie1 !== undefined && editMark.cie1 !== null) ? editMark.cie1 : '';
-                                    const valCIE2 = (editMark.cie2 !== undefined && editMark.cie2 !== null) ? editMark.cie2 : '';
-                                    const valCIE3 = (editMark.cie3 !== undefined && editMark.cie3 !== null) ? editMark.cie3 : '';
-                                    const valCIE4 = (editMark.cie4 !== undefined && editMark.cie4 !== null) ? editMark.cie4 : '';
-                                    const valCIE5 = (editMark.cie5 !== undefined && editMark.cie5 !== null) ? editMark.cie5 : '';
-                                    const att1Val = (editMark.cie1Att !== undefined && editMark.cie1Att !== null) ? editMark.cie1Att : '';
-                                    const att2Val = (editMark.cie2Att !== undefined && editMark.cie2Att !== null) ? editMark.cie2Att : '';
-                                    const att3Val = (editMark.cie3Att !== undefined && editMark.cie3Att !== null) ? editMark.cie3Att : '';
-                                    const att4Val = (editMark.cie4Att !== undefined && editMark.cie4Att !== null) ? editMark.cie4Att : '';
-                                    const att5Val = (editMark.cie5Att !== undefined && editMark.cie5Att !== null) ? editMark.cie5Att : '';
-                                    const total = (Number(valCIE1) || 0) + (Number(valCIE2) || 0) + (Number(valCIE3) || 0) + (Number(valCIE4) || 0) + (Number(valCIE5) || 0);
-                                    const cieVals = [
-                                        { key: 'CIE-1', val: valCIE1, att: att1Val !== '' ? parseFloat(att1Val) : null },
-                                        { key: 'CIE-2', val: valCIE2, att: att2Val !== '' ? parseFloat(att2Val) : null },
-                                        { key: 'CIE-3', val: valCIE3, att: att3Val !== '' ? parseFloat(att3Val) : null },
-                                        { key: 'CIE-4', val: valCIE4, att: att4Val !== '' ? parseFloat(att4Val) : null },
-                                        { key: 'CIE-5', val: valCIE5, att: att5Val !== '' ? parseFloat(att5Val) : null }
-                                    ];
-                                    const parts = []; let worstColor = '#94a3b8'; let worstBg = 'transparent';
-                                    cieVals.forEach(c => {
-                                        const v = c.val !== '' && c.val !== null && c.val !== undefined ? parseFloat(c.val) : null;
-                                        const att = c.att;
-                                        if (v == null) return;
-                                        if (v < 25 && att != null && att < 75) {
-                                            parts.push(`${c.key}: Low Marks, Low Att`); worstColor = '#dc2626'; worstBg = '#fef2f2';
-                                        } else if (v < 25) {
-                                            parts.push(`${c.key}: Low Marks`);
-                                            if (worstColor !== '#dc2626') { worstColor = '#ea580c'; worstBg = '#fff7ed'; }
-                                        } else if (att != null && att < 75) {
-                                            if (!parts.some(p => p.includes('Low Att'))) { parts.push('Low Att'); }
-                                            if (worstColor !== '#dc2626') { worstColor = '#ea580c'; worstBg = '#fff7ed'; }
-                                        }
-                                    });
-                                    const filledCount = cieVals.filter(c => c.val !== '' && c.val !== null && c.val !== undefined).length;
-                                    let remark = '-'; let remarkColor = '#94a3b8'; let remarkBg = 'transparent';
-                                    if (parts.length > 0) {
-                                        remark = parts.join(' | '); remarkColor = worstColor; remarkBg = worstBg;
-                                    } else if (filledCount > 0) {
-                                        const avg = total / filledCount;
-                                        const allAttGood = cieVals.filter(c => c.att != null).every(c => c.att >= 75);
-                                        if (avg >= 40 && allAttGood) { remark = 'Excellent'; remarkColor = '#15803d'; remarkBg = '#f0fdf4'; }
-                                        else { remark = 'Good'; remarkColor = '#2563eb'; remarkBg = '#eff6ff'; }
-                                    }
-                                    return (<tr key={student.id}><td>{index + 1}</td><td style={{ width: '150px', minWidth: '150px', fontWeight: 600 }}>{student.regNo}</td><td style={{ width: '350px', minWidth: '350px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '350px', fontWeight: 500 }} title={student.name}>{student.name}</td>
-                                        {['cie1', 'all'].includes(selectedCieType) && <td style={['cie1', 'all'].includes(selectedCieType) && selectedCieType !== 'all' ? { background: '#f8fafc' } : {}}><input type="number" className={styles.markInput} value={valCIE1} max={50} onChange={(e) => handleMarkChange(student.id, 'cie1', e.target.value)} /></td>}
-                                        {['cie1', 'all'].includes(selectedCieType) && <td style={{ background: '#f0fdf4' }}><input type="number" className={styles.markInput} style={{ border: '1px solid #86efac', color: '#15803d', background: '#f0fdf4' }} value={att1Val} max={100} onChange={(e) => handleMarkChange(student.id, 'cie1Att', e.target.value)} /></td>}
-                                        {['cie2', 'all'].includes(selectedCieType) && <td style={['cie2', 'all'].includes(selectedCieType) && selectedCieType !== 'all' ? { background: '#f8fafc' } : {}}><input type="number" className={styles.markInput} value={valCIE2} max={50} onChange={(e) => handleMarkChange(student.id, 'cie2', e.target.value)} /></td>}
-                                        {['cie2', 'all'].includes(selectedCieType) && <td style={{ background: '#f0fdf4' }}><input type="number" className={styles.markInput} style={{ border: '1px solid #86efac', color: '#15803d', background: '#f0fdf4' }} value={att2Val} max={100} onChange={(e) => handleMarkChange(student.id, 'cie2Att', e.target.value)} /></td>}
-                                        {['cie3', 'all'].includes(selectedCieType) && <td style={['cie3', 'all'].includes(selectedCieType) && selectedCieType !== 'all' ? { background: '#f8fafc' } : {}}><input type="number" className={styles.markInput} value={valCIE3} max={50} onChange={(e) => handleMarkChange(student.id, 'cie3', e.target.value)} /></td>}
-                                        {['cie3', 'all'].includes(selectedCieType) && <td style={{ background: '#f0fdf4' }}><input type="number" className={styles.markInput} style={{ border: '1px solid #86efac', color: '#15803d', background: '#f0fdf4' }} value={att3Val} max={100} onChange={(e) => handleMarkChange(student.id, 'cie3Att', e.target.value)} /></td>}
-                                        {['cie4', 'all'].includes(selectedCieType) && <td style={['cie4', 'all'].includes(selectedCieType) && selectedCieType !== 'all' ? { background: '#f8fafc' } : {}}><input type="number" className={styles.markInput} value={valCIE4} max={50} onChange={(e) => handleMarkChange(student.id, 'cie4', e.target.value)} /></td>}
-                                        {['cie4', 'all'].includes(selectedCieType) && <td style={{ background: '#f0fdf4' }}><input type="number" className={styles.markInput} style={{ border: '1px solid #86efac', color: '#15803d', background: '#f0fdf4' }} value={att4Val} max={100} onChange={(e) => handleMarkChange(student.id, 'cie4Att', e.target.value)} /></td>}
-                                        {['cie5', 'all'].includes(selectedCieType) && <td style={['cie5', 'all'].includes(selectedCieType) && selectedCieType !== 'all' ? { background: '#f8fafc' } : {}}><input type="number" className={styles.markInput} value={valCIE5} max={50} onChange={(e) => handleMarkChange(student.id, 'cie5', e.target.value)} /></td>}
-                                        {['cie5', 'all'].includes(selectedCieType) && <td style={{ background: '#f0fdf4' }}><input type="number" className={styles.markInput} style={{ border: '1px solid #86efac', color: '#15803d', background: '#f0fdf4' }} value={att5Val} max={100} onChange={(e) => handleMarkChange(student.id, 'cie5Att', e.target.value)} /></td>}
-
-                                        <td style={{ fontWeight: 'bold' }}>{Math.min(total, 250)}</td>
-
-                                        {(() => {
-                                            const getCieRemark = (v, a, label) => {
-                                                if (v == null || isNaN(v) || a == null || isNaN(a)) return null;
-                                                return {
-                                                    label,
-                                                    lowMarks: v < 25,
-                                                    lowAtt: a < 75,
-                                                    excellent: v >= 40 && a >= 75,
-                                                    severity: (v < 25 && a < 75) ? 3 : (v < 25 ? 2 : (a < 75 ? 2 : 0)),
-                                                    text: (v < 25 && a < 75) ? `${label}: Low Marks, Low Att` :
-                                                        (v < 25 ? `${label}: Low Marks` :
-                                                            (a < 75 ? `${label}: Low Att` :
-                                                                (v >= 40 && a >= 75 ? `${label}: Excellent` : `${label}: Good`)))
-                                                };
-                                            };
-
-                                            const allCies = [
-                                                getCieRemark(valCIE1 !== '' ? parseFloat(valCIE1) : null, att1Val !== '' ? parseFloat(att1Val) : null, 'CIE-1'),
-                                                getCieRemark(valCIE2 !== '' ? parseFloat(valCIE2) : null, att2Val !== '' ? parseFloat(att2Val) : null, 'CIE-2'),
-                                                getCieRemark(valCIE3 !== '' ? parseFloat(valCIE3) : null, att3Val !== '' ? parseFloat(att3Val) : null, 'CIE-3'),
-                                                getCieRemark(valCIE4 !== '' ? parseFloat(valCIE4) : null, att4Val !== '' ? parseFloat(att4Val) : null, 'CIE-4'),
-                                                getCieRemark(valCIE5 !== '' ? parseFloat(valCIE5) : null, att5Val !== '' ? parseFloat(att5Val) : null, 'CIE-5')
-                                            ];
-                                            const filled = allCies.filter(r => r !== null);
-
-                                            if (selectedCieType === 'all' && filled.length > 0) {
-                                                const worst = Math.max(...filled.map(r => r.severity));
-                                                const color = worst >= 3 ? '#dc2626' : worst >= 2 ? '#ea580c' : '#15803d';
-                                                const bg = worst >= 3 ? '#fef2f2' : worst >= 2 ? '#fff7ed' : '#f0fdf4';
-
-                                                const lowMarksCies = filled.filter(r => r.lowMarks).map(r => r.label);
-                                                const lowAttCies = filled.filter(r => r.lowAtt).map(r => r.label);
-
-                                                let textParts = [];
-                                                if (lowMarksCies.length > 0) textParts.push(`${lowMarksCies.join(',')} Low Marks`);
-                                                if (lowAttCies.length > 0) textParts.push(`${lowAttCies.join(',')} Low Att`);
-                                                if (textParts.length === 0) {
-                                                    const allExcellent = filled.every(r => r.excellent);
-                                                    textParts.push(allExcellent ? 'All Excellent' : 'All Good');
-                                                }
-                                                const text = textParts.join(' | ');
-                                                return <td style={{ width: '250px', minWidth: '250px', padding: '8px 4px', background: bg }}>
-                                                    <div style={{ fontSize: '0.65rem', fontWeight: 600, color, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.4' }}>{text}</div>
-                                                </td>;
-                                            } else if (selectedCieType === 'all') {
-                                                return <td style={{ width: '250px', minWidth: '250px', padding: 0 }}><div style={{ fontSize: '0.72rem', color: '#94a3b8', padding: '8px 4px' }}>-</div></td>;
-                                            }
-
-                                            /* Specific CIE selected */
-                                            const indexMap = { 'cie1': 0, 'cie2': 1, 'cie3': 2, 'cie4': 3, 'cie5': 4 };
-                                            const focused = allCies[indexMap[selectedCieType]];
-
-                                            if (!focused) return <td style={{ width: '250px', minWidth: '250px', padding: 0 }}><div style={{ fontSize: '0.72rem', color: '#94a3b8', padding: '8px 4px' }}>-</div></td>;
-                                            const color = focused.severity >= 3 ? '#dc2626' : focused.severity >= 2 ? '#ea580c' : focused.severity === 0 ? '#15803d' : '#2563eb';
-                                            const bg = focused.severity >= 3 ? '#fef2f2' : focused.severity >= 2 ? '#fff7ed' : '#f0fdf4';
-                                            return <td style={{ width: '250px', minWidth: '250px', padding: '8px 4px', background: bg }}>
-                                                <div style={{ fontSize: '0.72rem', fontWeight: 600, color, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.4' }}>{focused.text}</div>
-                                            </td>;
-
-                                        })()}
-                                    </tr>);
-                                })}</tbody></table></div></>) : (
+                                <th>Total (250)</th><th style={{ background: '#fefce8', color: '#a16207', width: '250px', minWidth: '250px' }}>Remarks</th></tr></thead><tbody>{students.filter(s => selectedSemester === 'all' || s.semester == selectedSemester).map((student, index) => (
+                                    <HODStudentRow
+                                        key={student.id}
+                                        student={student}
+                                        index={index}
+                                        editMark={editingMarks[student.id] || {}}
+                                        selectedCieType={selectedCieType}
+                                        styles={styles}
+                                        handleMarkChange={handleMarkChange}
+                                    />
+                                ))}</tbody></table></div></>) : (
                     <div style={{ padding: '4rem 2rem', textAlign: 'center', color: '#64748b', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', margin: '1rem' }}>
                         <div style={{ marginBottom: '1rem' }}>
                             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
@@ -2895,6 +3080,41 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                             </div>
                         ))
                     )}
+                    {/* Unlock Requests Section */}
+                    {unlockRequests.length > 0 && (
+                        <>
+                            <div className={styles.infoBanner} style={{ marginTop: '2rem', background: '#fffbeb', color: '#b45309', borderLeftColor: '#f59e0b' }}>
+                                <Unlock size={20} />
+                                <p>You have <strong>{unlockRequests.length}</strong> pending <strong>Unlock Requests</strong> from Faculty.</p>
+                            </div>
+                            {unlockRequestsLoading ? (
+                                <div style={{ textAlign: 'center', padding: '2rem' }}><Skeleton width="100%" height="80px" /></div>
+                            ) : (
+                                unlockRequests.map((req) => (
+                                    <div key={req.id} className={styles.approvalCard} style={{ background: '#fff8f1', border: '1px solid #fed7aa', marginTop: '1rem' }}>
+                                        <div className={styles.approvalHeader}>
+                                            <div>
+                                                <h4>{req.subject?.name}</h4>
+                                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '4px' }}>
+                                                    <span style={{ background: '#fed7aa', color: '#9a3412', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>CIE Types: {req.cieTypes}</span>
+                                                    <span style={{ fontSize: '0.85rem', color: '#64748b' }}>Faculty: {req.faculty?.fullName || req.faculty?.username}</span>
+                                                </div>
+                                            </div>
+                                            <div className={styles.approvlActions}>
+                                                <button className={styles.rejectBtn} onClick={() => handleRejectUnlockRequest(req.id)}>Reject</button>
+                                                <button className={styles.approveBtn} style={{ background: '#f59e0b', color: 'white' }} onClick={() => handleApproveUnlockRequest(req.id)}>Approve Unlock</button>
+                                            </div>
+                                        </div>
+                                        <div style={{ marginTop: '1rem', background: 'white', padding: '1rem', borderRadius: '8px', border: '1px dashed #fdba74' }}>
+                                            <h5 style={{ margin: '0 0 0.5rem 0', color: '#9a3412', fontSize: '0.9rem' }}>Reason for Unlock:</h5>
+                                            <p style={{ margin: 0, color: '#475569', fontSize: '0.9rem', fontStyle: 'italic' }}>"{req.reason}"</p>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </>
+                    )}
+
                     <div className={styles.card} style={{ marginTop: '2.5rem', border: '1px solid #fee2e2', boxShadow: '0 4px 15px rgba(239, 68, 68, 0.05)', overflow: 'visible' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #f1f5f9', paddingBottom: '1.25rem', marginBottom: '1.5rem' }}>
                             <div>

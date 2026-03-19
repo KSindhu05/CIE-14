@@ -162,6 +162,26 @@ public class NotificationController {
         return ResponseEntity.ok(Map.of("message", "Marked as read"));
     }
 
+    @PostMapping("/read-all")
+    @PreAuthorize("hasRole('STUDENT') or hasRole('FACULTY') or hasRole('HOD') or hasRole('PRINCIPAL')")
+    public ResponseEntity<?> markAllAsRead() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByUsernameIgnoreCase(username).orElse(null);
+        if (user == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "User not found"));
+        }
+
+        List<Notification> unreadNotifs = notificationRepository.findByUserIdOrderByCreatedAtDesc(user.getId())
+            .stream().filter(n -> !n.isRead()).collect(java.util.stream.Collectors.toList());
+        
+        for (Notification n : unreadNotifs) {
+            n.setRead(true);
+        }
+        notificationRepository.saveAll(unreadNotifs);
+
+        return ResponseEntity.ok(Map.of("message", "All marked as read"));
+    }
+
     @PostMapping("/student")
     @PreAuthorize("hasRole('FACULTY')")
     public ResponseEntity<?> sendStudentNotification(@RequestBody Map<String, String> data) {
@@ -242,5 +262,38 @@ public class NotificationController {
         notificationRepository.save(sentCopy);
 
         return ResponseEntity.ok(Map.of("message", "Message sent to " + target.getFullName()));
+    }
+
+    @PostMapping("/send")
+    @PreAuthorize("hasRole('FACULTY') or hasRole('HOD') or hasRole('PRINCIPAL')")
+    public ResponseEntity<?> sendNotification(@RequestBody Map<String, String> data) {
+        String senderUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        User sender = userRepository.findByUsernameIgnoreCase(senderUsername).orElse(null);
+        if (sender == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Sender not found"));
+        }
+
+        String message = data.getOrDefault("message", "");
+        String targetRole = data.getOrDefault("targetRole", "HOD");
+        String targetDepartment = data.getOrDefault("targetDepartment", sender.getDepartment());
+        String type = data.getOrDefault("type", "INFO");
+        String category = data.getOrDefault("category", "Faculty Request");
+
+        if (message.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Message cannot be empty"));
+        }
+
+        List<User> targets = userRepository.findByRoleAndDepartment(targetRole, targetDepartment);
+
+        for (User target : targets) {
+            Notification notif = new Notification();
+            notif.setUser(target);
+            notif.setMessage(message);
+            notif.setType(type);
+            notif.setCategory(category);
+            notificationRepository.save(notif);
+        }
+
+        return ResponseEntity.ok(Map.of("message", "Notification sent to " + targets.size() + " " + targetRole + "(s)"));
     }
 }
