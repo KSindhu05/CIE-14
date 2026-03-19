@@ -498,12 +498,13 @@ const StudentDashboard = () => {
                                             <><th>Marks ({selectedCIE})</th><th>Attendance</th></>
                                         )}
                                         <th>Total (250)</th>
-                                        <th style={{ background: '#fefce8', color: '#a16207' }}>Status</th>
+                                        <th style={{ background: '#fefce8', color: '#a16207' }}>Remarks</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {theorySubjects.map((row, idx) => {
                                         const status = getStatus(row.total, 250);
+                                        const remark = getRemarks(row.total, 250);
                                         return (
                                             <tr key={idx} style={{ animation: `fadeIn 0.3s ease-out ${idx * 0.05}s backwards` }}>
                                                 <td><div className={styles.subjectCell}><span style={{ fontWeight: 600 }}>{row.subject}</span><span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{row.code}</span></div></td>
@@ -522,7 +523,7 @@ const StudentDashboard = () => {
                                                     </>
                                                 )}
                                                 <td style={{ fontWeight: 700, color: 'var(--accent-indigo)' }}>{row.total} / 250</td>
-                                                <td><span className={styles.badge} style={{ background: `${status.color}15`, color: status.color }}>{status.label}</span></td>
+                                                <td><div style={{ fontSize: '0.75rem', fontWeight: 600, color: status.color, background: `${status.color}15`, padding: '6px 10px', borderRadius: '6px', whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.4', minWidth: '150px' }}>{remark}</div></td>
                                             </tr>
                                         );
                                     })}
