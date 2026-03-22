@@ -40,6 +40,9 @@ public class HodController {
     FacultyService facultyService;
 
     @Autowired
+    private com.example.ia.service.StudentService studentService;
+
+    @Autowired
     StudentRepository studentRepository;
 
     @Autowired
@@ -261,27 +264,34 @@ public class HodController {
             alerts.add(alert);
         }
 
-        // === Compute aggregate stats ===
+        // === Compute aggregate stats using ONLY completion-based logic ===
+        // Use strict CIE-completed students to calculate true department average and pass rate
+        List<com.example.ia.payload.response.StudentResponse> studentsResp = studentService.getStudentsWithAnalytics(department);
+        long completedStudents = studentsResp.stream().filter(s -> Boolean.TRUE.equals(s.getIsCie1Complete())).count();
+        
         double deptAvg = 0;
         double deptPassRate = 0;
-        int subjectsWithData = 0;
-        for (Map<String, Object> sp : subjectPerfList) {
-            double overall = ((Number) sp.get("overall")).doubleValue();
-            double passRate = ((Number) sp.get("passRate")).doubleValue();
-            if (overall > 0) {
-                deptAvg += overall;
-                deptPassRate += passRate;
-                subjectsWithData++;
-            }
+        
+        if (completedStudents > 0) {
+            deptAvg = studentsResp.stream()
+                    .filter(s -> Boolean.TRUE.equals(s.getIsCie1Complete()))
+                    .mapToDouble(com.example.ia.payload.response.StudentResponse::getOverallCie1Percentage)
+                    .average()
+                    .orElse(0.0);
+            
+            // Pass rate: percentage of completed students with overall percentage >= 40%
+            long passedStudents = studentsResp.stream()
+                    .filter(s -> Boolean.TRUE.equals(s.getIsCie1Complete()))
+                    .filter(s -> s.getOverallCie1Percentage() >= 40.0)
+                    .count();
+            deptPassRate = Math.round((passedStudents * 100.0 / completedStudents) * 10.0) / 10.0;
         }
-        if (subjectsWithData > 0) {
-            deptAvg = Math.round((deptAvg / subjectsWithData) * 10.0) / 10.0;
-            deptPassRate = Math.round((deptPassRate / subjectsWithData) * 10.0) / 10.0;
-        }
+        deptAvg = Math.round(deptAvg * 10.0) / 10.0;
 
         // === Build response ===
         Map<String, Object> data = new HashMap<>();
         data.put("totalStudents", students.size());
+        data.put("completedStudents", completedStudents);
         data.put("facultyCount", facultyCount);
         data.put("cieTrend", cieTrend);
         data.put("subjectPerfList", subjectPerfList);

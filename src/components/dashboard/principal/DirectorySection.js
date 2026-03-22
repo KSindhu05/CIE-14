@@ -41,34 +41,52 @@ const StudentProfileModal = ({ selectedStudentProfile, setSelectedStudentProfile
                     <p style={{ margin: 0, color: '#64748b' }}>{s.regNo || s.rollNo} | {selectedDept?.name} | {s.semester || s.sem} Sem</p>
                 </div>
 
+                <div style={{ marginBottom: '1.5rem' }}>
+                    <div className={styles.glassCard} style={{ padding: '1rem', overflowX: 'auto' }}>
+                        <h4 style={{ margin: '0 0 0.5rem', color: '#64748b', fontSize: '0.9rem' }}>Subject-Wise Performance (Out of 50 each)</h4>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                            <thead>
+                                <tr style={{ borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>
+                                    <th style={{ textAlign: 'left', padding: '0.5rem' }}>Subject</th>
+                                    <th style={{ textAlign: 'center', padding: '0.5rem' }}>CIE-1</th>
+                                    <th style={{ textAlign: 'center', padding: '0.5rem' }}>CIE-2</th>
+                                    <th style={{ textAlign: 'center', padding: '0.5rem' }}>CIE-3</th>
+                                    <th style={{ textAlign: 'center', padding: '0.5rem' }}>CIE-4</th>
+                                    <th style={{ textAlign: 'center', padding: '0.5rem' }}>CIE-5</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {s.subjectMarks && Object.entries(s.subjectMarks).map(([subj, marks]) => (
+                                    <tr key={subj} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                        <td style={{ padding: '0.5rem', color: '#0f172a', fontWeight: 500 }}>{subj}</td>
+                                        <td style={{ textAlign: 'center', padding: '0.5rem' }}>{marks.cie1 !== undefined ? marks.cie1 : '-'}</td>
+                                        <td style={{ textAlign: 'center', padding: '0.5rem' }}>{marks.cie2 !== undefined ? marks.cie2 : '-'}</td>
+                                        <td style={{ textAlign: 'center', padding: '0.5rem' }}>{marks.cie3 !== undefined ? marks.cie3 : '-'}</td>
+                                        <td style={{ textAlign: 'center', padding: '0.5rem' }}>{marks.cie4 !== undefined ? marks.cie4 : '-'}</td>
+                                        <td style={{ textAlign: 'center', padding: '0.5rem' }}>{marks.cie5 !== undefined ? marks.cie5 : '-'}</td>
+                                    </tr>
+                                ))}
+                                {(!s.subjectMarks || Object.keys(s.subjectMarks).length === 0) && (
+                                    <tr><td colSpan="6" style={{ textAlign: 'center', padding: '1rem', color: '#64748b' }}>No marks entered yet</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-                    <div className={styles.glassCard} style={{ padding: '1rem' }}>
-                        <h4 style={{ margin: '0 0 0.5rem', color: '#64748b', fontSize: '0.9rem' }}>Academic Performance</h4>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                            <span>CIE-1</span>
-                            <span>{s.marks?.cie1 || 0}/50</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                            <span>CIE-2</span>
-                            <span>{s.marks?.cie2 || 0}/50</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                            <span>CIE-3</span>
-                            <span>{s.marks?.cie3 || 0}/50</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                            <span>CIE-4</span>
-                            <span>{s.marks?.cie4 || 0}/50</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                            <span>CIE-5</span>
-                            <span>{s.marks?.cie5 || 0}/50</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: '#0f172a', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem' }}>
-                            <span>Total</span>
-                            <span>{(s.marks?.cie1 || 0) + (s.marks?.cie2 || 0) + (s.marks?.cie3 || 0) + (s.marks?.cie4 || 0) + (s.marks?.cie5 || 0)}/250</span>
+                    <div className={styles.glassCard} style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <h4 style={{ margin: '0', color: '#64748b', fontSize: '0.9rem' }}>Overall Performance</h4>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                            <div style={{ fontSize: '2.5rem', fontWeight: '800', color: s.isCie1Complete ? '#10b981' : '#cbd5e1' }}>
+                                {s.isCie1Complete && s.overallCie1Percentage !== null ? `${s.overallCie1Percentage.toFixed(1)}%` : 'Incomplete'}
+                            </div>
+                            <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: s.isCie1Complete ? '#059669' : '#f59e0b', fontWeight: 500 }}>
+                                {s.isCie1Complete ? 'Completed all CIE-1 exams' : 'Missing CIE-1 marks for some subjects'}
+                            </p>
                         </div>
                     </div>
+
                     <div className={styles.glassCard} style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                         <h4 style={{ margin: '0', color: '#64748b', fontSize: '0.9rem' }}>Behavior & Contact</h4>
                         <div>

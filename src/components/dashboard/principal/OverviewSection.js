@@ -68,7 +68,7 @@ const HeroStatCard = ({ label, value, icon: Icon, color, trend, gradient, custom
 );
 
 const OverviewSection = memo(({
-    stats, chartData, branches, branchPerformance, lowPerformers,
+    stats, chartData, branches, branchPerformance, deptStudentCounts, deptCompletedCounts, lowPerformers,
     facultyAnalytics, schedule, approvals, cieStats, trends, hodSubmissionStatus, onNavigate, loading
 }) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'fadeIn 0.6s ease-out' }}>
@@ -174,7 +174,12 @@ const OverviewSection = memo(({
                                             <span style={{ fontWeight: '800', fontSize: '1.6rem', color: '#1e293b', lineHeight: 1 }}>{score}%</span>
                                         </div>
                                     </div>
-                                    <span style={{ marginTop: '1rem', fontWeight: 600, fontSize: '0.9rem', color: '#64748b' }}>{dept}</span>
+                                    <div style={{ marginTop: '1rem', fontWeight: 600, fontSize: '0.9rem', color: '#64748b', textAlign: 'center', lineHeight: 1.2 }}>
+                                        {dept} <br/>
+                                        <span style={{fontSize: '0.75rem', fontWeight: 500}}>
+                                            ({deptCompletedCounts?.[dept] || 0}/{deptStudentCounts?.[dept] || 0} completed)
+                                        </span>
+                                    </div>
                                 </div>
                             );
                         })}

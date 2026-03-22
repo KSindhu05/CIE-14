@@ -2415,8 +2415,11 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                                 <div className={styles.statCard} onClick={() => setActiveTab('performance')} style={{ cursor: 'pointer' }}>
                                     <div className={`${styles.iconBox} ${styles.purple}`}><FileText size={24} /></div>
                                     <div className={styles.statInfo}>
-                                        <p>Dept. Average</p>
-                                        <h3>{analytics ? analytics.average : '-'}/50</h3>
+                                        <p style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            Dept. Average
+                                            <span style={{fontSize: '0.7rem', color: '#64748b', fontWeight: 500}}>({analytics?.completedStudents || 0}/{deptStudents.length || 0} completed)</span>
+                                        </p>
+                                        <h3 style={{ marginTop: '4px' }}>{analytics ? analytics.average : '-'}/50</h3>
                                     </div>
                                 </div>
                                 <div className={styles.statCard} onClick={() => setActiveTab('performance')} style={{ cursor: 'pointer' }}>
@@ -2444,7 +2447,7 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                                             </div>
                                         ))
                                     ) : analytics ? (
-                                        [{ label: 'Avg Percentage', value: Math.round(((analytics.average || 0) / 50) * 100) },
+                                        [{ label: `Avg % (${analytics?.completedStudents || 0} completed)`, value: Math.round(((analytics.average || 0) / 50) * 100) },
                                         { label: 'Pass Rate', value: analytics.passPercentage || 0 },
                                         { label: 'Risk Factor', value: (analytics.totalStudents || deptStudents.length) > 0 ? Math.round(((analytics.atRiskCount || 0) / (analytics.totalStudents || deptStudents.length)) * 100) : 0 }]
                                             .map((metric, index) => {

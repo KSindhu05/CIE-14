@@ -182,14 +182,59 @@ public class StudentService {
         return students.stream().map(student -> {
             List<com.example.ia.entity.CieMark> marksList = cieMarkRepository.findByStudent_Id(student.getId());
             java.util.Map<String, Double> marksMap = new java.util.HashMap<>();
+            java.util.Map<String, java.util.Map<String, Double>> subjectMarks = new java.util.HashMap<>();
+            
+            int cie1Count = 0;
+            double totalCie1Marks = 0.0;
 
             for (com.example.ia.entity.CieMark mark : marksList) {
                 // Determine key based on cieType (e.g., CIE1, CIE2)
                 String key = mark.getCieType().toLowerCase().replace(" ", "");
-                marksMap.put(key, mark.getMarks());
+                Double markValue = mark.getMarks() != null ? mark.getMarks() : 0.0;
+                
+                // Add to flat marksMap (summing them up to avoid overwrite loss in pie charts)
+                marksMap.put(key, marksMap.getOrDefault(key, 0.0) + markValue);
+                
+                // Add to subject-wise map
+                String subName = mark.getSubject().getName();
+                subjectMarks.putIfAbsent(subName, new java.util.HashMap<>());
+                subjectMarks.get(subName).put(key, markValue);
+                
+                // Count for CIE-1 completion (only if marks are entered)
+                if (key.equals("cie1") && mark.getMarks() != null) {
+                    cie1Count++;
+                    totalCie1Marks += markValue;
+                }
             }
+            
+            // Direct lookup: get subjects for this student's department + semester
+            java.util.List<com.example.ia.entity.Subject> subjects = java.util.List.of();
+            if (student.getDepartment() != null && student.getSemester() != null) {
+                subjects = subjectRepository.findByDepartmentAndSemester(
+                    student.getDepartment(), student.getSemester());
+            }
+            
+            // Filter out Lab duplicates - only count unique base subject names
+            java.util.Set<String> uniqueSubjectNames = subjects.stream()
+                .map(s -> s.getName().replaceAll("(?i)\\s*[\\[\\(]?(Theory|Lab|T|L)[\\]\\)]?\\s*$", "").trim())
+                .collect(java.util.stream.Collectors.toSet());
+            int enrolledCount = uniqueSubjectNames.size();
+            
+            Boolean isCie1Complete = (enrolledCount > 0 && cie1Count >= enrolledCount);
+            Double overallCie1Percentage = 0.0;
+            
+            if (isCie1Complete) {
+                overallCie1Percentage = (totalCie1Marks / (enrolledCount * 50.0)) * 100.0;
+            }
+            
+            System.out.println("DEBUG [StudentAnalytics] " + student.getRegNo() 
+                + " | dept=" + student.getDepartment() 
+                + " | sem=" + student.getSemester()
+                + " | enrolledSubjects=" + enrolledCount 
+                + " | cie1Count=" + cie1Count 
+                + " | complete=" + isCie1Complete);
 
-            return new com.example.ia.payload.response.StudentResponse(student, marksMap);
+            return new com.example.ia.payload.response.StudentResponse(student, marksMap, subjectMarks, isCie1Complete, overallCie1Percentage);
         }).collect(java.util.stream.Collectors.toList());
     }
 }

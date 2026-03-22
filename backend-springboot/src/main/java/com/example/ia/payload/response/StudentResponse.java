@@ -14,12 +14,18 @@ public class StudentResponse {
     private String phone;
     private String parentPhone;
     private Map<String, Double> marks;
+    private Map<String, Map<String, Double>> subjectMarks;
+    private Boolean isCie1Complete;
+    private Double overallCie1Percentage;
 
     // Mocked fields for UI
     private String feesStatus = "Paid";
     private String mentoringStatus = "Done";
 
-    public StudentResponse(Student student, Map<String, Double> marks) {
+    public StudentResponse(Student student, Map<String, Double> marks, 
+                           Map<String, Map<String, Double>> subjectMarks, 
+                           Boolean isCie1Complete, 
+                           Double overallCie1Percentage) {
         this.id = student.getId();
         this.regNo = student.getRegNo();
         this.name = student.getName();
@@ -30,6 +36,9 @@ public class StudentResponse {
         this.phone = student.getPhone();
         this.parentPhone = student.getParentPhone();
         this.marks = marks;
+        this.subjectMarks = subjectMarks;
+        this.isCie1Complete = isCie1Complete;
+        this.overallCie1Percentage = overallCie1Percentage;
     }
 
     // Getters and Setters
@@ -83,5 +92,17 @@ public class StudentResponse {
 
     public String getMentoringStatus() {
         return mentoringStatus;
+    }
+
+    public Map<String, Map<String, Double>> getSubjectMarks() {
+        return subjectMarks;
+    }
+
+    public Boolean getIsCie1Complete() {
+        return isCie1Complete;
+    }
+
+    public Double getOverallCie1Percentage() {
+        return overallCie1Percentage;
     }
 }

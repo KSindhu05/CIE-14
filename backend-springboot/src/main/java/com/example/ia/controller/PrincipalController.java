@@ -60,6 +60,9 @@ public class PrincipalController {
     @Autowired
     FacultyAssignmentRequestRepository assignmentRequestRepository;
 
+    @Autowired
+    private com.example.ia.service.StudentService studentService;
+
     private static String semesterStatus = "ACTIVE";
 
     @GetMapping("/semester/status")
@@ -213,25 +216,26 @@ public class PrincipalController {
 
         List<Double> branchPerformance = new ArrayList<>();
         List<Map<String, Object>> hodSubmissionStatus = new ArrayList<>();
+        Map<String, Long> deptCompletedCounts = new HashMap<>();
 
         for (String dept : branchList) {
-            // Get marks for this Dept
-            List<Subject> deptSubjects = subjectRepository.findByDepartment(dept);
-            List<CieMark> deptMarks = new ArrayList<>();
-            for (Subject s : deptSubjects) {
-                deptMarks.addAll(cieMarkRepository.findBySubject_Id(s.getId()));
+            // Get Student Analytics for this Dept
+            List<com.example.ia.payload.response.StudentResponse> students = studentService.getStudentsWithAnalytics(dept);
+            
+            long totalStudentsInDept = students.size();
+            long completedStudents = students.stream().filter(s -> Boolean.TRUE.equals(s.getIsCie1Complete())).count();
+            deptCompletedCounts.put(dept, completedStudents);
+            
+            double avgPercentage = 0.0;
+            if (completedStudents > 0) {
+                avgPercentage = students.stream()
+                        .filter(s -> Boolean.TRUE.equals(s.getIsCie1Complete()))
+                        .mapToDouble(com.example.ia.payload.response.StudentResponse::getOverallCie1Percentage)
+                        .average()
+                        .orElse(0.0);
             }
 
-            // Calculate Avg
-            double avg = deptMarks.stream()
-                    .filter(m -> m.getMarks() != null)
-                    .mapToDouble(CieMark::getMarks)
-                    .average()
-                    .orElse(0.0);
-
-            // Normalize to percentage (assuming max 50)
-            double percentage = (avg / 50.0) * 100.0;
-            branchPerformance.add(Math.round(percentage * 10.0) / 10.0);
+            branchPerformance.add(Math.round(avgPercentage * 10.0) / 10.0);
 
             // HOD Status (Mock logic based on performance/completion)
             Map<String, Object> status = new HashMap<>();
@@ -240,7 +244,7 @@ public class PrincipalController {
             List<User> hods = userRepository.findByRoleAndDepartment("HOD", dept);
             String hodName = hods.isEmpty() ? "Not Assigned" : hods.get(0).getFullName();
             status.put("hod", hodName);
-            status.put("status", percentage > 50 ? "Approved" : "Pending");
+            status.put("status", avgPercentage > 50 ? "Approved" : "Pending");
             status.put("punctuality", "On Time");
             hodSubmissionStatus.add(status);
         }
@@ -248,6 +252,7 @@ public class PrincipalController {
         response.put("branches", branchList);
         response.put("branchPerformance", branchPerformance);
         response.put("hodSubmissionStatus", hodSubmissionStatus);
+        response.put("deptCompletedCounts", deptCompletedCounts);
 
         // Per-department student counts
         Map<String, Long> deptStudentCounts = new HashMap<>();

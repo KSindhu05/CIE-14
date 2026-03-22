@@ -388,6 +388,8 @@ const PrincipalDashboard = () => {
                         chartData={barData}
                         branches={dashboardData?.branches}
                         branchPerformance={dashboardData?.branchPerformance}
+                        deptStudentCounts={dashboardData?.deptStudentCounts}
+                        deptCompletedCounts={dashboardData?.deptCompletedCounts}
                         lowPerformers={dashboardData?.lowPerformers}
                         facultyAnalytics={dashboardData?.facultyAnalytics}
                         schedule={dashboardData?.dates}
