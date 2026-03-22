@@ -46,21 +46,41 @@ const StudentProfileModal = ({ selectedStudentProfile, setSelectedStudentProfile
                         <h4 style={{ margin: '0 0 0.5rem', color: '#64748b', fontSize: '0.9rem' }}>Academic Performance</h4>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                             <span>CIE-1</span>
-                            <span>{s.marks?.cie1 || 0}/20</span>
+                            <span>{s.marks?.cie1 || 0}/50</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                             <span>CIE-2</span>
-                            <span>{s.marks?.cie2 || 0}/20</span>
+                            <span>{s.marks?.cie2 || 0}/50</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                            <span>CIE-3</span>
+                            <span>{s.marks?.cie3 || 0}/50</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                            <span>CIE-4</span>
+                            <span>{s.marks?.cie4 || 0}/50</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                            <span>CIE-5</span>
+                            <span>{s.marks?.cie5 || 0}/50</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', color: '#0f172a', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem' }}>
                             <span>Total</span>
-                            <span>{(s.marks?.cie1 || 0) + (s.marks?.cie2 || 0)}/40</span>
+                            <span>{(s.marks?.cie1 || 0) + (s.marks?.cie2 || 0) + (s.marks?.cie3 || 0) + (s.marks?.cie4 || 0) + (s.marks?.cie5 || 0)}/250</span>
                         </div>
                     </div>
-                    <div className={styles.glassCard} style={{ padding: '1rem' }}>
-                        <h4 style={{ margin: '0 0 0.5rem', color: '#64748b', fontSize: '0.9rem' }}>Behavior</h4>
+                    <div className={styles.glassCard} style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <h4 style={{ margin: '0', color: '#64748b', fontSize: '0.9rem' }}>Behavior & Contact</h4>
                         <div>
                             <span style={{ padding: '4px 8px', background: '#f0f9ff', color: '#0284c7', borderRadius: '4px', fontSize: '0.8rem' }}>Good Conduct</span>
+                        </div>
+                        <div style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                            <span style={{ color: '#64748b', display: 'block', marginBottom: '2px' }}>Mentor</span>
+                            <span style={{ color: '#0f172a', fontWeight: 500 }}>{s.mentor || 'Not Assigned'}</span>
+                        </div>
+                        <div style={{ fontSize: '0.85rem' }}>
+                            <span style={{ color: '#64748b', display: 'block', marginBottom: '2px' }}>Parent Number</span>
+                            <span style={{ color: '#0f172a', fontWeight: 500 }}>{s.parentPhone || 'N/A'}</span>
                         </div>
                     </div>
                 </div>
@@ -178,31 +198,32 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
 
     const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
 
-        if (parentLoading && departments.length === 0) {
-            return (
-                <div className={styles.sectionVisible}>
-                    <h3 className={styles.chartTitle} style={{ marginBottom: '1.5rem' }}>Select Department</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                        {[1, 2, 3, 4].map(i => (
-                            <div key={i} className={styles.glassCard} style={{ borderLeft: '4px solid #e2e8f0' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
-                                    <Skeleton width="120px" height="24px" />
-                                    <Skeleton width="40px" height="20px" />
-                                </div>
-                                <div style={{ color: '#64748b', fontSize: '0.9rem' }}>
-                                    <Skeleton width="80px" height="14px" style={{ marginBottom: '8px' }} />
-                                    <Skeleton width="120px" height="14px" />
-                                </div>
-                                <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
-                                    <Skeleton width="100px" height="16px" />
-                                </div>
+    if (parentLoading && departments.length === 0) {
+        return (
+            <div className={styles.sectionVisible}>
+                <h3 className={styles.chartTitle} style={{ marginBottom: '1.5rem' }}>Select Department</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
+                    {[1, 2, 3, 4].map(i => (
+                        <div key={i} className={styles.glassCard} style={{ borderLeft: '4px solid #e2e8f0' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
+                                <Skeleton width="120px" height="24px" />
+                                <Skeleton width="40px" height="20px" />
                             </div>
-                        ))}
-                    </div>
+                            <div style={{ color: '#64748b', fontSize: '0.9rem' }}>
+                                <Skeleton width="80px" height="14px" style={{ marginBottom: '8px' }} />
+                                <Skeleton width="120px" height="14px" />
+                            </div>
+                            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
+                                <Skeleton width="100px" height="16px" />
+                            </div>
+                        </div>
+                    ))}
                 </div>
-            );
-        }
+            </div>
+        );
+    }
 
+    if (!selectedDept) {
         return (
             <div className={styles.sectionVisible}>
                 <h3 className={styles.chartTitle} style={{ marginBottom: '1.5rem' }}>Select Department</h3>
@@ -225,8 +246,8 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                                 <span style={{ background: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>{dept.id}</span>
                             </div>
                             <div style={{ color: '#64748b', fontSize: '0.9rem' }}>
-                                <p>HOD: {dept.hod}</p>
-                                <p>Total Students: {dept.studentCount}</p>
+                                <p style={{ margin: '0 0 4px 0' }}>HOD: <span style={{ background: 'linear-gradient(to right, #2563eb, #9333ea, #db2777)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', fontWeight: 700 }}>{dept.hod}</span></p>
+                                <p style={{ margin: 0 }}>Total Students: {dept.studentCount}</p>
                             </div>
                             <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
                                 <span style={{ color: '#2563eb', fontWeight: '600', fontSize: '0.9rem' }}>View Students →</span>
@@ -236,6 +257,7 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                 </div>
             </div>
         );
+    }
 
     return (
         <div className={styles.sectionVisible}>

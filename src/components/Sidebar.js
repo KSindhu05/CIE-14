@@ -42,7 +42,7 @@ const Sidebar = ({ menuItems }) => {
                     </button>
                     <img src={collegeLogo} alt="SGP Logo" className={styles.mobileHeaderLogo} />
                     <button
-                        className={styles.mobileLogoutBtn}
+                        className={styles.mobileTopLogoutBtn}
                         onClick={logout}
                         aria-label="Logout"
                         title="Logout"

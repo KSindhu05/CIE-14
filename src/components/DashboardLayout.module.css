@@ -98,7 +98,7 @@
         margin-left: 0 !important;
         margin-right: 0 !important;
         padding: 1rem;
-        padding-top: 70px;
+        padding-top: 110px;
         height: auto;
         min-height: 100vh;
         overflow-x: hidden;
@@ -121,6 +121,6 @@
 @media (max-width: 480px) {
     .mainContent {
         padding: 0.75rem;
-        padding-top: 66px;
+        padding-top: 110px;
     }
 }
