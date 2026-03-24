@@ -15,6 +15,9 @@ import com.example.ia.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import com.example.ia.entity.SystemConfig;
+import com.example.ia.repository.SystemConfigRepository;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -39,6 +42,9 @@ public class FacultyService {
 
     @Autowired
     private FacultyAssignmentRequestRepository assignmentRequestRepository;
+
+    @Autowired
+    private SystemConfigRepository systemConfigRepository;
 
     // ---------------------------------------------------------------
     // Parse the comma-separated section field into a list of sections.
@@ -153,7 +159,7 @@ public class FacultyService {
         return students.stream().map(student -> {
             List<CieMark> marksList = cieMarkRepository.findByStudent_Id(student.getId());
             java.util.Map<String, Double> marksMap = new java.util.HashMap<>();
-            java.util.Map<String, java.util.Map<String, Double>> subjectMarks = new java.util.HashMap<>();
+            java.util.Map<String, java.util.Map<String, Object>> subjectMarks = new java.util.HashMap<>();
             
             int cie1Count = 0;
             double totalCie1Marks = 0.0;
@@ -170,7 +176,13 @@ public class FacultyService {
                 String subName = mark.getSubject().getName();
                 subjectMarks.putIfAbsent(subName, new java.util.HashMap<>());
                 subjectMarks.get(subName).put(key, markValue);
-                
+                if (mark.getAttendancePercentage() != null) {
+                    subjectMarks.get(subName).put(key + "_att", mark.getAttendancePercentage());
+                }
+                if (mark.getRemarks() != null && !mark.getRemarks().isEmpty()) {
+                    subjectMarks.get(subName).put(key + "_remarks", mark.getRemarks());
+                }
+
                 // Count for CIE-1 completion
                 if (key.equals("cie1") && mark.getMarks() != null) {
                     cie1Count++;
@@ -254,6 +266,43 @@ public class FacultyService {
     }
 
     public FacultyClassAnalytics getAnalytics(String username) {
+        User user = userRepository.findByUsername(username).orElse(null);
+        String department = user != null ? user.getDepartment() : null;
+
+        // Fetch department-specific configurations
+        double excellentThreshold = 40.0;
+        double lowThreshold = 20.0;
+        Map<Long, Double> subjectTargetsMap = new HashMap<>();
+        
+        if (department != null) {
+            List<SystemConfig> configs = systemConfigRepository.findByDepartment(department);
+            for (SystemConfig cfg : configs) {
+                try {
+                    if ("excellent_threshold".equals(cfg.getConfigKey())) {
+                        excellentThreshold = Double.parseDouble(cfg.getConfigValue());
+                    } else if ("low_threshold".equals(cfg.getConfigKey())) {
+                        lowThreshold = Double.parseDouble(cfg.getConfigValue());
+                    } else if ("subject_targets".equals(cfg.getConfigKey())) {
+                        String targetsJson = cfg.getConfigValue();
+                        if (targetsJson != null && !targetsJson.trim().isEmpty()) {
+                            targetsJson = targetsJson.replace("{", "").replace("}", "").replace("\"", "").replace(" ", "");
+                            if (!targetsJson.isEmpty()) {
+                                String[] pairs = targetsJson.split(",");
+                                for (String pair : pairs) {
+                                    String[] kv = pair.split(":");
+                                    if (kv.length == 2) {
+                                        Long subId = Long.parseLong(kv[0]);
+                                        Double targetPercent = Double.parseDouble(kv[1]);
+                                        subjectTargetsMap.put(subId, (targetPercent / 100.0) * 50.0);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+
         List<Student> allowedStudents = getStudentsForFaculty(username);
         Set<Long> allowedStudentIds = allowedStudents.stream().map(Student::getId).collect(Collectors.toSet());
 
@@ -290,12 +339,14 @@ public class FacultyService {
                             mark.getCieType(), score, mark.getAttendancePercentage(),
                             mark.getStudent().getParentPhone());
 
-                    if (score <= 20) {
+                    double currentLowThreshold = subjectTargetsMap.containsKey(sub.getId()) ? subjectTargetsMap.get(sub.getId()) : lowThreshold;
+                    
+                    if (score < currentLowThreshold) {
                         low++;
                         lowList.add(record);
-                    } else if (score > 20 && score <= 40) {
+                    } else if (score >= currentLowThreshold && score < excellentThreshold) {
                         averageList.add(record);
-                    } else if (score > 40) {
+                    } else if (score >= excellentThreshold && score >= currentLowThreshold) {
                         top++;
                         excellentList.add(record);
                     }

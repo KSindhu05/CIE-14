@@ -116,7 +116,11 @@ const OverviewSection = memo(({
                         icon={Activity}
                         color="#10b981"
                         gradient="linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)"
-                        customContent={<CIEStatsWidget {...cieStats} />}
+                        customContent={<CIEStatsWidget 
+                            conducted={Object.values(deptCompletedCounts || {}).reduce((a, b) => a + b, 0)} 
+                            pending={Math.max(0, Object.values(deptStudentCounts || {}).reduce((a, b) => a + b, 0) - Object.values(deptCompletedCounts || {}).reduce((a, b) => a + b, 0))} 
+                            graded={0} 
+                        />}
                         onClick={() => onNavigate && onNavigate('compliance')}
                     />
                 </>

@@ -284,20 +284,33 @@ public class PrincipalController {
         Map<String, Long> deptCompletedCounts = new HashMap<>();
 
         for (String dept : branchList) {
-            // Get Student Analytics for this Dept
-            List<com.example.ia.payload.response.StudentResponse> students = studentService.getStudentsWithAnalytics(dept);
-            
-            long totalStudentsInDept = students.size();
-            long completedStudents = students.stream().filter(s -> Boolean.TRUE.equals(s.getIsCie1Complete())).count();
-            deptCompletedCounts.put(dept, completedStudents);
-            
+            // Direct query: get all CIE marks for students in this department
+            List<Student> deptStudentsList = studentRepository.findByDepartment(dept);
+            Set<Long> deptStudentIds = deptStudentsList.stream()
+                    .map(Student::getId)
+                    .collect(Collectors.toSet());
+
+            // Get all marks for students in this department
+            List<CieMark> deptMarks = cieMarkRepository.findAll().stream()
+                    .filter(m -> m.getStudent() != null && deptStudentIds.contains(m.getStudent().getId()))
+                    .filter(m -> m.getMarks() != null && m.getMarks() > 0)
+                    .collect(Collectors.toList());
+
+            // Count distinct students who have any marks
+            long studentsWithMarks = deptMarks.stream()
+                    .map(m -> m.getStudent().getId())
+                    .distinct()
+                    .count();
+            deptCompletedCounts.put(dept, studentsWithMarks);
+
+            // Compute average as percentage of max (50)
             double avgPercentage = 0.0;
-            if (completedStudents > 0) {
-                avgPercentage = students.stream()
-                        .filter(s -> Boolean.TRUE.equals(s.getIsCie1Complete()))
-                        .mapToDouble(com.example.ia.payload.response.StudentResponse::getOverallCie1Percentage)
+            if (!deptMarks.isEmpty()) {
+                double avgMarks = deptMarks.stream()
+                        .mapToDouble(CieMark::getMarks)
                         .average()
                         .orElse(0.0);
+                avgPercentage = (avgMarks / 50.0) * 100.0;
             }
 
             branchPerformance.add(Math.round(avgPercentage * 10.0) / 10.0);

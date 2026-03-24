@@ -337,19 +337,8 @@ const FacultyDashboard = () => {
     });
     const [performanceTab, setPerformanceTab] = useState('low'); // 'excellent', 'average', 'low'
 
-    // Mentorship State
-    const [menteeIds, setMenteeIds] = useState(() => {
-        const saved = localStorage.getItem(`mentees_${user?.id}`);
-        if (saved) return JSON.parse(saved);
-
-        // Default IDs from the image (459CS25001 - 459CS25007 precisely)
-        const defaultRegs = ['459CS25001', '459CS25002', '459CS25003', '459CS25005', '459CS25007'];
-        const foundIds = students
-            .filter(s => defaultRegs.includes(s.regNo) || defaultRegs.includes(s.rollNo))
-            .map(s => s.id);
-
-        return foundIds.length > 0 ? foundIds : [];
-    });
+    // Mentorship State — derived from backend student.mentor field via sync useEffect below
+    const [menteeIds, setMenteeIds] = useState([]);
     const [showMenteeModal, setShowMenteeModal] = useState(false);
     const [menteeSearchTerm, setMenteeSearchTerm] = useState('');
     const [manualMentees, setManualMentees] = useState(() => {
@@ -406,10 +395,8 @@ const FacultyDashboard = () => {
                 // Update local state immediately for responsiveness
                 setStudents(prev => prev.map(s => s.id === studentId ? { ...s, mentor: user.fullName || user.username || 'Faculty' } : s));
                 
-                // Still keep track in menteeIds for the "Mentorship" tab filtering
-                const newIds = [...menteeIds, studentId];
-                setMenteeIds(newIds);
-                localStorage.setItem(`mentees_${user?.id}`, JSON.stringify(newIds));
+                // Update menteeIds for the "Mentorship" tab filtering
+                setMenteeIds(prev => [...new Set([...prev, studentId])]);
                 
                 showToast('Mentee added successfully');
                 setShowMenteeModal(false);
@@ -456,9 +443,7 @@ const FacultyDashboard = () => {
                 // Update local state
                 setStudents(prev => prev.map(s => s.id === studentId ? { ...s, mentor: null } : s));
                 
-                const newIds = menteeIds.filter(id => id !== studentId);
-                setMenteeIds(newIds);
-                localStorage.setItem(`mentees_${user?.id}`, JSON.stringify(newIds));
+                setMenteeIds(prev => prev.filter(id => id !== studentId));
                 
                 showToast('Mentee removed', 'info');
             } else {
@@ -531,16 +516,14 @@ const FacultyDashboard = () => {
     React.useEffect(() => {
         if (students.length > 0 && user?.fullName) {
             const backedIds = students
-                .filter(s => s.mentor === user.fullName)
+                .filter(s => s.mentor && (s.mentor === user.fullName || s.mentor === user.username))
                 .map(s => s.id);
             
-            if (backedIds.length > 0) {
-                // Merge with existing local IDs to avoid overwriting recent local additions before they sync
-                setMenteeIds(prev => {
-                    const combined = [...new Set([...prev, ...backedIds])];
-                    return combined;
-                });
-            }
+            // Replace menteeIds with backend-derived list (source of truth is DB)
+            setMenteeIds(prev => {
+                const combined = [...new Set([...prev, ...backedIds])];
+                return combined;
+            });
         }
     }, [students, user]);
 
@@ -3659,7 +3642,7 @@ const FacultyDashboard = () => {
                 borderColor: '#bcf0da',
                 icon: <Award size={20} />,
                 list: facultyClassAnalytics.excellentPerformersList || [],
-                description: 'Students who scored more than 40/50 marks.'
+                description: 'Students who achieved Excellent marks in this subject.'
             },
             {
                 id: 'average',
@@ -3669,7 +3652,7 @@ const FacultyDashboard = () => {
                 borderColor: '#fde68a',
                 icon: <ClipboardList size={20} />,
                 list: facultyClassAnalytics.averagePerformersList || [],
-                description: 'Students who scored between 20 and 40 marks.'
+                description: 'Students who scored between the passing threshold and Excellent marks.'
             },
             {
                 id: 'low',
@@ -3679,7 +3662,7 @@ const FacultyDashboard = () => {
                 borderColor: '#fecaca',
                 icon: <AlertTriangle size={20} />,
                 list: facultyClassAnalytics.lowPerformersList || [],
-                description: 'Students who scored 20 or fewer marks.'
+                description: 'Students who scored below the passing threshold (At Risk).'
             }
         ];
 

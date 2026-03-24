@@ -1998,6 +1998,57 @@
     background: #fee2e2;
 }
 
+/* Filter Select Dropdowns */
+.filterSelect {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    padding: 0.55rem 2.2rem 0.55rem 1rem;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: #1e293b;
+    background-color: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 10px;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.25s ease;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 14px;
+    min-width: 140px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    font-family: inherit;
+    line-height: 1.4;
+    letter-spacing: 0.01em;
+}
+
+.filterSelect:hover {
+    border-color: #93c5fd;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
+    background-color: #f8fafc;
+}
+
+.filterSelect:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12), 0 2px 8px rgba(37, 99, 235, 0.08);
+    background-color: #ffffff;
+}
+
+.filterSelect option {
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: #1e293b;
+    padding: 0.5rem;
+    background: #ffffff;
+}
+
+.filterSelect option:checked {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
 /* ===== MOBILE RESPONSIVE ===== */
 @media (max-width: 768px) {
     .header {

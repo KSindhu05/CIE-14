@@ -129,7 +129,7 @@ const DebouncedInput = ({ value, onChange, max, style, className }) => {
     );
 };
 
-const HODStudentRow = React.memo(({ student, index, editMark, selectedCieType, styles, handleMarkChange }) => {
+const HODStudentRow = React.memo(({ student, index, editMark, selectedCieType, styles, handleMarkChange, perfConfig }) => {
     const valCIE1 = (editMark.cie1 !== undefined && editMark.cie1 !== null) ? editMark.cie1 : '';
     const valCIE2 = (editMark.cie2 !== undefined && editMark.cie2 !== null) ? editMark.cie2 : '';
     const valCIE3 = (editMark.cie3 !== undefined && editMark.cie3 !== null) ? editMark.cie3 : '';
@@ -179,19 +179,33 @@ const HODStudentRow = React.memo(({ student, index, editMark, selectedCieType, s
         <td style={{ fontWeight: 'bold' }}>{Math.min(total, 250)}</td>
 
         {(() => {
+            const lowMarksThreshold = parseInt(perfConfig?.low_threshold) || 20;
+            const excellentThreshold = parseInt(perfConfig?.excellent_threshold) || 40;
+            const lowAttThreshold = parseInt(perfConfig?.low_attendance_threshold) || 75;
+
             const getCieRemark = (v, a, label) => {
                 if (v == null || isNaN(v) || a == null || isNaN(a)) return null;
-                return {
-                    label,
-                    lowMarks: v < 25,
-                    lowAtt: a < 75,
-                    excellent: v >= 40 && a >= 75,
-                    severity: (v < 25 && a < 75) ? 3 : (v < 25 ? 2 : (a < 75 ? 2 : 0)),
-                    text: (v < 25 && a < 75) ? `${label}: Low Marks, Low Att` :
-                        (v < 25 ? `${label}: Low Marks` :
-                            (a < 75 ? `${label}: Low Att` :
-                                (v >= 40 && a >= 75 ? `${label}: Excellent` : `${label}: Good`)))
-                };
+                const lowMarks = v < lowMarksThreshold;
+                const lowAtt = a < lowAttThreshold;
+                const excellent = v >= excellentThreshold && a >= lowAttThreshold;
+                let severity, text;
+                if (lowMarks && lowAtt) {
+                    severity = 3;
+                    text = `Needs Improvement – Low marks & attendance in ${label}`;
+                } else if (lowMarks) {
+                    severity = 2;
+                    text = `Below Average – Low marks in ${label}`;
+                } else if (lowAtt) {
+                    severity = 2;
+                    text = `Attendance Issue – Low attendance in ${label}`;
+                } else if (excellent) {
+                    severity = 0;
+                    text = `Excellent – ${label}`;
+                } else {
+                    severity = 1;
+                    text = `Good – ${label}`;
+                }
+                return { label, lowMarks, lowAtt, excellent, severity, text };
             };
 
             const allCies = [
@@ -211,14 +225,17 @@ const HODStudentRow = React.memo(({ student, index, editMark, selectedCieType, s
                 const lowMarksCies = filled.filter(r => r.lowMarks).map(r => r.label);
                 const lowAttCies = filled.filter(r => r.lowAtt).map(r => r.label);
 
-                let textParts = [];
-                if (lowMarksCies.length > 0) textParts.push(`${lowMarksCies.join(',')} Low Marks`);
-                if (lowAttCies.length > 0) textParts.push(`${lowAttCies.join(',')} Low Att`);
-                if (textParts.length === 0) {
+                let text = '';
+                if (lowMarksCies.length > 0 && lowAttCies.length > 0) {
+                    text = `Needs Attention – Low marks in ${lowMarksCies.length} CIE${lowMarksCies.length > 1 ? 's' : ''}, Low attendance in ${lowAttCies.length} CIE${lowAttCies.length > 1 ? 's' : ''}`;
+                } else if (lowMarksCies.length > 0) {
+                    text = `Below Average – Low marks in ${lowMarksCies.join(', ')}`;
+                } else if (lowAttCies.length > 0) {
+                    text = `Attendance Issue – Low attendance in ${lowAttCies.join(', ')}`;
+                } else {
                     const allExcellent = filled.every(r => r.excellent);
-                    textParts.push(allExcellent ? 'All Excellent' : 'All Good');
+                    text = allExcellent ? 'Outstanding Performance – All CIEs Excellent' : 'Good Performance – On Track';
                 }
-                const text = textParts.join(' | ');
                 return <td style={{ width: '250px', minWidth: '250px', padding: '8px 4px', background: bg }}>
                     <div style={{ fontSize: '0.65rem', fontWeight: 600, color, whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.4' }}>{text}</div>
                 </td>;
@@ -258,20 +275,103 @@ const HODStudentRow = React.memo(({ student, index, editMark, selectedCieType, s
         prev.handleMarkChange === next.handleMarkChange;
 });
 
+// Row component for All Subjects mode
+const HODAllSubjectsStudentRow = React.memo(({ student, index, editMarks, validSubjects, selectedCieType, styles, handleMarkChange, perfConfig }) => {
+    return (<tr key={student.id}>
+        <td style={{ width: '50px', minWidth: '50px', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>{index + 1}</td>
+        <td style={{ width: '130px', minWidth: '130px', fontWeight: 600, borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>{student.regNo}</td>
+        <td style={{ width: '220px', minWidth: '220px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '220px', fontWeight: 500, borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }} title={student.name}>{student.name}</td>
+        {validSubjects.map(sub => {
+            const subjectMarks = editMarks[sub.id] || {};
+            const cieTypes = selectedCieType === 'all' ? ['cie1', 'cie2', 'cie3', 'cie4', 'cie5'] : [selectedCieType];
+            
+            return (
+                <React.Fragment key={sub.id}>
+                    {cieTypes.map((cieKey, cieIdx) => {
+                        const valCIE = (subjectMarks[cieKey] !== undefined && subjectMarks[cieKey] !== null) ? subjectMarks[cieKey] : '';
+                        const valAtt = (subjectMarks[`${cieKey}Att`] !== undefined && subjectMarks[`${cieKey}Att`] !== null) ? subjectMarks[`${cieKey}Att`] : '';
+                        const isLastCie = cieIdx === cieTypes.length - 1;
+                        
+                        return (
+                            <React.Fragment key={`${sub.id}-${cieKey}`}>
+                                <td style={{ background: '#f8fafc', padding: '4px', width: '55px', minWidth: '55px', borderBottom: '1px solid #e2e8f0' }}>
+                                    <DebouncedInput className={styles.markInput} style={{ width: '100%', minWidth: '45px', padding: '6px 4px', textAlign: 'center' }} value={valCIE} max={50} onChange={(newVal) => handleMarkChange(student.id, cieKey, newVal, sub.id)} />
+                                </td>
+                                <td style={{ background: '#f0fdf4', padding: '4px', width: '55px', minWidth: '55px', borderRight: isLastCie ? '1px solid #e2e8f0' : 'none', borderBottom: '1px solid #e2e8f0' }}>
+                                    <DebouncedInput className={styles.markInput} style={{ width: '100%', minWidth: '45px', padding: '6px 4px', textAlign: 'center', border: '1px solid #86efac', color: '#15803d', background: '#f0fdf4' }} value={valAtt} max={100} onChange={(newVal) => handleMarkChange(student.id, `${cieKey}Att`, newVal, sub.id)} />
+                                </td>
+                            </React.Fragment>
+                        );
+                    })}
+                </React.Fragment>
+            );
+        })}
+        {(() => {
+            const lowMarksThreshold = parseInt(perfConfig?.low_threshold) || 20;
+            const excellentThreshold = parseInt(perfConfig?.excellent_threshold) || 40;
+            const lowAttThreshold = parseInt(perfConfig?.low_attendance_threshold) || 75;
+
+            let lowMarksCount = 0;
+            let lowAttCount = 0;
+            let totalEvaluated = 0;
+            let allExcellent = true;
+
+            validSubjects.forEach(sub => {
+                const subMarks = editMarks[sub.id] || {};
+                const cies = ['cie1', 'cie2', 'cie3', 'cie4', 'cie5'];
+                cies.forEach(cie => {
+                    const score = subMarks[cie];
+                    const att = subMarks[`${cie}Att`];
+                    if (score !== undefined && score !== null && score !== '') {
+                        totalEvaluated++;
+                        const s = parseFloat(score);
+                        const a = parseFloat(att);
+                        if (s < lowMarksThreshold) lowMarksCount++;
+                        if (a < lowAttThreshold) lowAttCount++;
+                        if (s < excellentThreshold || a < lowAttThreshold) allExcellent = false;
+                    }
+                });
+            });
+
+            if (totalEvaluated === 0) return <td style={{ background: '#f8fafc', borderLeft: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>-</td>;
+
+            const severity = (lowMarksCount + lowAttCount > 0) ? 2 : (allExcellent ? 0 : 1);
+            const color = severity === 2 ? '#dc2626' : severity === 0 ? '#16a34a' : '#2563eb';
+            const bg = severity === 2 ? '#fef2f2' : severity === 0 ? '#f0fdf4' : '#eff6ff';
+
+            let summary = '';
+            if (lowMarksCount > 0 && lowAttCount > 0) summary = `Needs Attention – Low marks in ${lowMarksCount} CIE${lowMarksCount > 1 ? 's' : ''}, Low attendance in ${lowAttCount} CIE${lowAttCount > 1 ? 's' : ''}`;
+            else if (lowMarksCount > 0) summary = `Below Average – Low marks in ${lowMarksCount} CIE${lowMarksCount > 1 ? 's' : ''}`;
+            else if (lowAttCount > 0) summary = `Attendance Issue – Low attendance in ${lowAttCount} CIE${lowAttCount > 1 ? 's' : ''}`;
+            else summary = allExcellent ? 'Outstanding Performance – All CIEs Excellent' : 'Good Performance – On Track';
+
+            return <td style={{ background: bg, borderLeft: '1px solid #e2e8f0', padding: '8px', borderBottom: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color, textAlign: 'center' }}>{summary}</div>
+            </td>;
+        })()}
+    </tr>);
+}, (prev, next) => {
+    return prev.student.id === next.student.id &&
+        prev.index === next.index &&
+        prev.editMarks === next.editMarks &&
+        prev.validSubjects === next.validSubjects &&
+        prev.selectedCieType === next.selectedCieType;
+});
+
 // Editable remark badge: shows auto remark, click to edit, saves to backend
 const EditableRemark = ({ score, attendance, overallRemarks, onSave }) => {
     const getAutoRemark = () => {
         if (score != null && attendance != null) {
-            if (score <= 20 && attendance < 75) return { text: 'Low Marks, Low Att', color: '#dc2626', bg: '#fef2f2' };
-            if (score <= 20) return { text: 'Low Marks', color: '#ea580c', bg: '#fff7ed' };
-            if (attendance < 75) return { text: 'Low Attendance', color: '#ea580c', bg: '#fff7ed' };
-            if (score >= 40) return { text: 'Excellent', color: '#16a34a', bg: '#f0fdf4' };
-            return { text: 'Good', color: '#2563eb', bg: '#eff6ff' };
+            if (score <= 20 && attendance < 75) return { text: 'Needs Improvement – Low marks & attendance', color: '#dc2626', bg: '#fef2f2' };
+            if (score <= 20) return { text: 'Below Average – Low marks', color: '#ea580c', bg: '#fff7ed' };
+            if (attendance < 75) return { text: 'Attendance Issue – Low attendance', color: '#ea580c', bg: '#fff7ed' };
+            if (score >= 40) return { text: 'Excellent Performance', color: '#16a34a', bg: '#f0fdf4' };
+            return { text: 'Good Performance – On Track', color: '#2563eb', bg: '#eff6ff' };
         }
         if (score != null) {
-            if (score <= 20) return { text: 'Low Marks', color: '#ea580c', bg: '#fff7ed' };
-            if (score >= 40) return { text: 'Excellent', color: '#16a34a', bg: '#f0fdf4' };
-            return { text: 'Good', color: '#2563eb', bg: '#eff6ff' };
+            if (score <= 20) return { text: 'Below Average – Low marks', color: '#ea580c', bg: '#fff7ed' };
+            if (score >= 40) return { text: 'Excellent Performance', color: '#16a34a', bg: '#f0fdf4' };
+            return { text: 'Good Performance – On Track', color: '#2563eb', bg: '#eff6ff' };
         }
         return { text: '-', color: '#94a3b8', bg: 'transparent' };
     };
@@ -375,9 +475,18 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
     const [hodExcellentList, setHodExcellentList] = useState([]);
     const [hodAverageList, setHodAverageList] = useState([]);
     const [hodLowList, setHodLowList] = useState([]);
-    const [perfConfig, setPerfConfig] = useState({ excellent_threshold: '40', average_threshold_min: '20', low_threshold: '20', low_attendance_threshold: '75' });
+    const [hodPassedTargetList, setHodPassedTargetList] = useState([]);
+    const [perfConfig, setPerfConfig] = useState({ excellent_threshold: '40', average_threshold_min: '20', low_threshold: '20', low_attendance_threshold: '75', subject_targets: '{}' });
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [editingPerfConfig, setEditingPerfConfig] = useState({});
+    const [targetSubjectId, setTargetSubjectId] = useState('');
+    const [targetPercentage, setTargetPercentage] = useState('');
+
+    const parsedSubjectTargets = React.useMemo(() => {
+        try {
+            return perfConfig.subject_targets ? JSON.parse(perfConfig.subject_targets) : {};
+        } catch (e) { return {}; }
+    }, [perfConfig.subject_targets]);
 
     // Syllabus Form State
     const [syllabusForm, setSyllabusForm] = useState({ subjectId: '', cieNumber: '1', syllabus: '' });
@@ -408,6 +517,7 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
 
     // Subject Editing State
     const [editingSubject, setEditingSubject] = useState(null);
+    const [allSubjectsEditingMarks, setAllSubjectsEditingMarks] = useState({});
 
     // Pending Approvals State
     const [pendingApprovals, setPendingApprovals] = useState([]);
@@ -443,6 +553,15 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
     const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
     const [resetTarget, setResetTarget] = useState(null); // { username, fullName, role }
     const [newPassword, setNewPassword] = useState('');
+
+    // Download Modal State
+    const [showDownloadModal, setShowDownloadModal] = useState(false);
+    const [dlDataType, setDlDataType] = useState('marks');
+    const [dlSections, setDlSections] = useState(['All']);
+    const [dlCies, setDlCies] = useState(['All']);
+    const [dlSubject, setDlSubject] = useState('All');
+    const [dlPerfCategory, setDlPerfCategory] = useState('all');
+    const [dlSourceTab, setDlSourceTab] = useState(null);
 
     // Overview data (real from API)
     const [departmentAlerts, setDepartmentAlerts] = useState([]);
@@ -719,7 +838,7 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                 const studentPromise = authenticatedFetch(`${API_BASE_URL}/student/all?department=${selectedDept}`);
                 const facultyPromise = authenticatedFetch(`${API_BASE_URL}/hod/faculty?department=${selectedDept}`);
                 const overviewPromise = authenticatedFetch(`${API_BASE_URL}/hod/overview?department=${selectedDept}`);
-                
+
                 const [studentRes, facultyRes, overviewRes] = await Promise.all([
                     studentPromise, facultyPromise, overviewPromise
                 ]);
@@ -989,17 +1108,24 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
     useEffect(() => {
         if (activeTab !== 'performance' || Object.keys(subjectMarksData).length === 0) return;
         const excellentThreshold = parseInt(perfConfig.excellent_threshold) || 40;
-        const averageThreshold = parseInt(perfConfig.average_threshold_min) || 20;
-        const lowThreshold = parseInt(perfConfig.low_threshold) || 15;
+        const lowThreshold = parseInt(perfConfig.low_threshold) || 20;
         const excellent = [];
         const average = [];
         const low = [];
+        const passedTarget = [];
         // Build lookup from deptStudents for fresh remarks/phone data
         const studentLookup = {};
         deptStudents.forEach(s => {
             if (s.id) studentLookup[s.id] = s;
             if (s.regNo) studentLookup[s.regNo] = s;
         });
+
+        // Helper to find subject ID from name
+        const getSubjectId = (name) => {
+            const sub = subjects.find(s => s.name === name);
+            return sub ? sub.id : null;
+        };
+
         Object.entries(subjectMarksData).forEach(([subjectName, marks]) => {
             if (!Array.isArray(marks)) return;
             marks.forEach(m => {
@@ -1022,15 +1148,28 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                     overallRemarks: fullStudent.overallRemarks || m.student?.overallRemarks || '',
                     remarks: m.remarks || ''
                 };
-                if (score >= excellentThreshold) excellent.push(record);
-                else if (score >= averageThreshold) average.push(record);
+                const subId = getSubjectId(subjectName);
+                let currentLowThreshold = lowThreshold;
+
+                if (subId && parsedSubjectTargets[subId]) {
+                    const targetPercent = parseFloat(parsedSubjectTargets[subId]);
+                    currentLowThreshold = (targetPercent / 100) * 50; 
+                }
+
+                if (score >= excellentThreshold && score >= currentLowThreshold) excellent.push(record);
+                else if (score >= currentLowThreshold) average.push(record);
                 else low.push(record);
+
+                if (score >= currentLowThreshold) {
+                    passedTarget.push(record);
+                }
             });
         });
         setHodExcellentList(excellent);
         setHodAverageList(average);
         setHodLowList(low);
-    }, [activeTab, subjectMarksData, perfConfig, deptStudents]);
+        setHodPassedTargetList(passedTarget);
+    }, [activeTab, subjectMarksData, perfConfig, deptStudents, parsedSubjectTargets, subjects]);
 
     useEffect(() => {
         setIsMyDept(true); // Allow viewing specific departments
@@ -1042,32 +1181,88 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
 
 
 
+    // Compute valid theory subjects for the selected semester
+    const validSubjectsForSemester = React.useMemo(() => {
+        if (!subjects || !selectedSemester || selectedSemester === 'all') return [];
+        const seen = new Set();
+        const theoryNames = new Set();
+
+        subjects.forEach(sub => {
+            if (sub.name === 'IC') return;
+            if (sub.semester != selectedSemester) return;
+            if (/\(Theory\)/i.test(sub.name)) {
+                theoryNames.add(sub.name.replace(/\s*\([\w\s]+\)/gi, '').trim());
+            }
+        });
+
+        return subjects.filter(sub => {
+            if (sub.name === 'IC') return false;
+            if (sub.semester != selectedSemester) return false;
+
+            const cleanName = sub.name.replace(/\s*\([\w\s]+\)/gi, '').trim();
+            if (/\(Lab\)/i.test(sub.name) && theoryNames.has(cleanName)) return false;
+
+            if (seen.has(cleanName)) return false;
+            seen.add(cleanName);
+            return true;
+        }).map(sub => ({
+            ...sub,
+            cleanName: sub.name.replace(/\s*\([\w\s]+\)/gi, '').trim()
+        }));
+    }, [subjects, selectedSemester]);
+
     useEffect(() => {
         if (selectedSubject && selectedSubject.id) {
             const fetchMarks = async () => {
-                try {
-                    const response = await authenticatedFetch(`${API_BASE_URL}/marks/subject/${selectedSubject.id}`);
+                if (selectedSubject.id === 'ALL') {
+                    // Fetch for ALL valid subjects
+                    try {
+                        const promises = validSubjectsForSemester.map(sub =>
+                            authenticatedFetch(`${API_BASE_URL}/marks/subject/${sub.id}`).then(res => res.json())
+                        );
+                        const results = await Promise.all(promises);
 
-                    if (response.ok) {
-                        const marksData = await response.json();
-                        console.log('Fetched Marks for Subject ' + selectedSubject.id, marksData);
-                        const marksMap = {};
+                        const allMarksMap = {};
+                        validSubjectsForSemester.forEach((sub, idx) => {
+                            const subMarks = results[idx];
+                            subMarks.forEach(m => {
+                                if (!allMarksMap[m.studentId]) allMarksMap[m.studentId] = {};
+                                if (!allMarksMap[m.studentId][sub.id]) allMarksMap[m.studentId][sub.id] = {};
 
-                        // Populate editingMarks from DB data
-                        marksData.forEach(m => {
-                            if (!marksMap[m.studentId]) marksMap[m.studentId] = {};
-                            // Treat 0 marks on PENDING status as null (not yet entered)
-                            const markValue = (m.marks === 0 || m.marks === null) && m.status === 'PENDING' ? null : m.marks;
-                            if (m.cieType === 'CIE1') { marksMap[m.studentId].cie1 = markValue; marksMap[m.studentId].cie1Att = m.attendancePercentage; }
-                            if (m.cieType === 'CIE2') { marksMap[m.studentId].cie2 = markValue; marksMap[m.studentId].cie2Att = m.attendancePercentage; }
-                            if (m.cieType === 'CIE3') { marksMap[m.studentId].cie3 = markValue; marksMap[m.studentId].cie3Att = m.attendancePercentage; }
-                            if (m.cieType === 'CIE4') { marksMap[m.studentId].cie4 = markValue; marksMap[m.studentId].cie4Att = m.attendancePercentage; }
-                            if (m.cieType === 'CIE5') { marksMap[m.studentId].cie5 = markValue; marksMap[m.studentId].cie5Att = m.attendancePercentage; }
+                                const markValue = (m.marks === 0 || m.marks === null) && m.status === 'PENDING' ? null : m.marks;
+                                if (m.cieType === 'CIE1') { allMarksMap[m.studentId][sub.id].cie1 = markValue; allMarksMap[m.studentId][sub.id].cie1Att = m.attendancePercentage; }
+                                if (m.cieType === 'CIE2') { allMarksMap[m.studentId][sub.id].cie2 = markValue; allMarksMap[m.studentId][sub.id].cie2Att = m.attendancePercentage; }
+                                if (m.cieType === 'CIE3') { allMarksMap[m.studentId][sub.id].cie3 = markValue; allMarksMap[m.studentId][sub.id].cie3Att = m.attendancePercentage; }
+                                if (m.cieType === 'CIE4') { allMarksMap[m.studentId][sub.id].cie4 = markValue; allMarksMap[m.studentId][sub.id].cie4Att = m.attendancePercentage; }
+                                if (m.cieType === 'CIE5') { allMarksMap[m.studentId][sub.id].cie5 = markValue; allMarksMap[m.studentId][sub.id].cie5Att = m.attendancePercentage; }
+                            });
                         });
-                        setEditingMarks(marksMap);
+                        setAllSubjectsEditingMarks(allMarksMap);
+                    } catch (e) {
+                        console.error("Failed to fetch ALL marks for editing", e);
                     }
-                } catch (e) {
-                    console.error("Failed to fetch marks for editing", e);
+                } else {
+                    try {
+                        const response = await authenticatedFetch(`${API_BASE_URL}/marks/subject/${selectedSubject.id}`);
+
+                        if (response.ok) {
+                            const marksData = await response.json();
+                            const marksMap = {};
+
+                            marksData.forEach(m => {
+                                if (!marksMap[m.studentId]) marksMap[m.studentId] = {};
+                                const markValue = (m.marks === 0 || m.marks === null) && m.status === 'PENDING' ? null : m.marks;
+                                if (m.cieType === 'CIE1') { marksMap[m.studentId].cie1 = markValue; marksMap[m.studentId].cie1Att = m.attendancePercentage; }
+                                if (m.cieType === 'CIE2') { marksMap[m.studentId].cie2 = markValue; marksMap[m.studentId].cie2Att = m.attendancePercentage; }
+                                if (m.cieType === 'CIE3') { marksMap[m.studentId].cie3 = markValue; marksMap[m.studentId].cie3Att = m.attendancePercentage; }
+                                if (m.cieType === 'CIE4') { marksMap[m.studentId].cie4 = markValue; marksMap[m.studentId].cie4Att = m.attendancePercentage; }
+                                if (m.cieType === 'CIE5') { marksMap[m.studentId].cie5 = markValue; marksMap[m.studentId].cie5Att = m.attendancePercentage; }
+                            });
+                            setEditingMarks(marksMap);
+                        }
+                    } catch (e) {
+                        console.error("Failed to fetch marks for editing", e);
+                    }
                 }
             };
             fetchMarks();
@@ -1210,42 +1405,85 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
 
     const handleLogout = () => { window.location.href = '/'; };
 
-    const handleMarkChange = (studentId, field, value) => {
-        if (value === '') {
-            setEditingMarks(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: '' } }));
-            return;
+    const handleMarkChange = (studentId, field, value, subjectId = null) => {
+        let finalValue = value;
+        if (value !== '') {
+            let numValue = parseInt(value, 10);
+            if (isNaN(numValue)) return;
+            const max = field.includes('Att') ? 100 : 50;
+            if (numValue < 0) numValue = 0; if (numValue > max) numValue = max;
+            finalValue = numValue;
         }
-        let numValue = parseInt(value, 10);
-        if (isNaN(numValue)) return;
-        const max = field.includes('Att') ? 100 : 50; // Each CIE has max 50 marks, Att max 100
-        if (numValue < 0) numValue = 0; if (numValue > max) numValue = max;
-        setEditingMarks(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: numValue } }));
+
+        if (subjectId) {
+            setAllSubjectsEditingMarks(prev => ({
+                ...prev,
+                [studentId]: {
+                    ...prev[studentId],
+                    [subjectId]: {
+                        ...(prev[studentId]?.[subjectId] || {}),
+                        [field]: finalValue
+                    }
+                }
+            }));
+        } else {
+            setEditingMarks(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: finalValue } }));
+        }
     };
 
     const saveMarks = async () => {
         if (!selectedSubject) return;
 
         const payload = [];
-        Object.keys(editingMarks).forEach(studentId => {
-            const marks = editingMarks[studentId];
-            const sid = Number(studentId);
-            ['cie1', 'cie2', 'cie3', 'cie4', 'cie5'].forEach(key => {
-                const val = marks[key];
-                const attValStr = marks[key + 'Att'];
-                const attVal = attValStr !== undefined && attValStr !== '' && attValStr !== null ? Number(attValStr) : null;
 
-                if ((val === undefined || val === null || val === '') && attVal === null) return; // Skip if both empty
+        if (selectedSubject.id === 'ALL') {
+            Object.keys(allSubjectsEditingMarks).forEach(studentId => {
+                const studentSubjects = allSubjectsEditingMarks[studentId];
+                const sid = Number(studentId);
+                Object.keys(studentSubjects).forEach(subId => {
+                    const marks = studentSubjects[subId];
+                    const numSubId = Number(subId);
+                    ['cie1', 'cie2', 'cie3', 'cie4', 'cie5'].forEach(key => {
+                        const val = marks[key];
+                        const attValStr = marks[key + 'Att'];
+                        const attVal = attValStr !== undefined && attValStr !== '' && attValStr !== null ? Number(attValStr) : null;
 
-                payload.push({
-                    studentId: sid,
-                    subjectId: selectedSubject.id,
-                    iaType: key.toUpperCase(),
-                    co1: val !== undefined && val !== null && val !== '' ? Number(val) : null,
-                    co2: 0,
-                    attendancePercentage: attVal
+                        if ((val === undefined || val === null || val === '') && attVal === null) return;
+
+                        payload.push({
+                            studentId: sid,
+                            subjectId: numSubId,
+                            iaType: key.toUpperCase(),
+                            co1: val !== undefined && val !== null && val !== '' ? Number(val) : null,
+                            co2: 0,
+                            attendancePercentage: attVal
+                        });
+                    });
                 });
             });
-        });
+        } else {
+            Object.keys(editingMarks).forEach(studentId => {
+                const marks = editingMarks[studentId];
+                const sid = Number(studentId);
+                ['cie1', 'cie2', 'cie3', 'cie4', 'cie5'].forEach(key => {
+                    const val = marks[key];
+                    const attValStr = marks[key + 'Att'];
+                    const attVal = attValStr !== undefined && attValStr !== '' && attValStr !== null ? Number(attValStr) : null;
+
+                    if ((val === undefined || val === null || val === '') && attVal === null) return;
+
+                    payload.push({
+                        studentId: sid,
+                        subjectId: selectedSubject.id,
+                        iaType: key.toUpperCase(),
+                        co1: val !== undefined && val !== null && val !== '' ? Number(val) : null,
+                        co2: 0,
+                        attendancePercentage: attVal
+                    });
+                });
+            });
+        }
+
 
         if (payload.length === 0) {
             showToast('No changes to save.', 'info');
@@ -2323,6 +2561,199 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
         );
     };
 
+    const renderDownloadModal = () => {
+        if (!showDownloadModal) return null;
+
+        const modalDerivedSubjects = subjects.filter(sub => sub.name !== 'IC').map(sub => ({
+            id: sub.id, name: sub.name, cleanName: sub.name.replace(/\[.*?\]/g, '').trim()
+        }));
+
+        return (
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }} onClick={() => setShowDownloadModal(false)}>
+                <div style={{ background: 'white', borderRadius: '16px', width: '90%', maxWidth: '560px', padding: '2rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', position: 'relative', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+                    <button style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }} onClick={() => setShowDownloadModal(false)}><X size={22} color="#64748b" /></button>
+                    
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <h3 style={{ margin: '0 0 4px', color: '#0f172a', fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <Download size={22} color="#3b82f6" /> Download Data
+                        </h3>
+                        <p style={{ margin: 0, color: '#64748b', fontSize: '0.85rem' }}>Select what you want to download</p>
+                    </div>
+
+                    <div style={{ marginBottom: '1.25rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Data Type</label>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            {[{ id: 'marks', label: 'Marks' }, { id: 'performance', label: 'Performance' }, { id: 'list', label: 'Student List' }].map(dt => (
+                                <button key={dt.id} style={{
+                                    padding: '6px 14px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+                                    border: dlDataType === dt.id ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                                    background: dlDataType === dt.id ? '#eff6ff' : '#f8fafc',
+                                    color: dlDataType === dt.id ? '#2563eb' : '#64748b', transition: 'all 0.15s'
+                                }} onClick={() => setDlDataType(dt.id)}>{dt.label}</button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div style={{ marginBottom: '1.25rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Sections</label>
+                        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                            {['All', 'A', 'B', 'C', 'D'].map(sec => (
+                                <label key={sec} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: '#1e293b', cursor: 'pointer', fontWeight: 500 }}>
+                                    <input type="checkbox" style={{ width: '16px', height: '16px', accentColor: '#3b82f6', cursor: 'pointer' }}
+                                        checked={dlSections.includes(sec)}
+                                        onChange={() => {
+                                            if (sec === 'All') setDlSections(dlSections.includes('All') ? [] : ['All']);
+                                            else setDlSections(prev => { const next = prev.filter(s => s !== 'All'); return next.includes(sec) ? next.filter(s => s !== sec) : [...next, sec]; });
+                                        }}
+                                    />
+                                    {sec === 'All' ? 'All Sections' : `Section ${sec}`}
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    {(dlDataType === 'marks' || dlDataType === 'performance') && (
+                        <div style={{ marginBottom: '1.25rem' }}>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>CIE Types</label>
+                            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                                {['All', 'CIE1', 'CIE2', 'CIE3', 'CIE4', 'CIE5'].map(cie => (
+                                    <label key={cie} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', color: '#1e293b', cursor: 'pointer', fontWeight: 500 }}>
+                                        <input type="checkbox" style={{ width: '16px', height: '16px', accentColor: '#3b82f6', cursor: 'pointer' }}
+                                            checked={dlCies.includes(cie)}
+                                            onChange={() => {
+                                                if (cie === 'All') setDlCies(dlCies.includes('All') ? [] : ['All']);
+                                                else setDlCies(prev => { const next = prev.filter(s => s !== 'All'); return next.includes(cie) ? next.filter(s => s !== cie) : [...next, cie]; });
+                                            }}
+                                        />
+                                        {cie}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {(dlDataType === 'marks' || dlDataType === 'performance') && (
+                        <div style={{ marginBottom: '1.25rem' }}>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Subject</label>
+                            <select className={styles.filterSelect} style={{ width: '100%' }} value={dlSubject} onChange={e => setDlSubject(e.target.value)}>
+                                <option value="All">All Subjects</option>
+                                {modalDerivedSubjects.map(sub => <option key={sub.id} value={sub.id}>{sub.cleanName}</option>)}
+                            </select>
+                        </div>
+                    )}
+
+                    {dlDataType === 'performance' && (
+                        <div style={{ marginBottom: '1.25rem' }}>
+                            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Performance Category</label>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                {[{ id: 'all', label: 'All', c: '#6366f1' }, { id: 'excellent', label: 'Excellent', c: '#10b981' }, { id: 'average', label: 'Average', c: '#f59e0b' }, { id: 'low', label: 'Low', c: '#ef4444' }, { id: 'passed', label: 'Passed', c: '#3b82f6' }].map(cat => (
+                                    <button key={cat.id} style={{
+                                        padding: '6px 14px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+                                        border: dlPerfCategory === cat.id ? `2px solid ${cat.c}` : '1px solid #e2e8f0',
+                                        background: dlPerfCategory === cat.id ? cat.c + '15' : '#f8fafc',
+                                        color: dlPerfCategory === cat.id ? cat.c : '#64748b', transition: 'all 0.15s'
+                                    }} onClick={() => setDlPerfCategory(cat.id)}>{cat.label}</button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid #e2e8f0' }}>
+                        <button style={{ flex: 1, padding: '0.75rem', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem' }}
+                            onClick={() => setShowDownloadModal(false)}>Cancel</button>
+                        <button style={{ flex: 2, padding: '0.75rem', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 2px 8px rgba(59,130,246,0.3)' }}
+                            onClick={() => {
+                                const secFilter = dlSections.includes('All') || dlSections.length === 0 ? null : dlSections;
+                                const students = deptStudents.filter(s => {
+                                    const semNum = selectedSemester === 'all' ? null : String(selectedSemester).replace(/\D/g, '');
+                                    const matchSem = !semNum || (s.semester || s.sem) == semNum;
+                                    const matchSec = !secFilter || secFilter.includes(s.section || 'A');
+                                    return matchSem && matchSec;
+                                });
+                                const cieKeys = dlCies.includes('All') || dlCies.length === 0 ? ['cie1','cie2','cie3','cie4','cie5'] : dlCies.map(c => c.toLowerCase());
+                                const dept = selectedDept || 'dept';
+                                let headers, rows, filename;
+
+                                if (dlDataType === 'marks') {
+                                    const subs = dlSubject === 'All' ? modalDerivedSubjects : modalDerivedSubjects.filter(s => s.id == dlSubject);
+                                    headers = ['Sl No', 'Reg No', 'Name', 'Semester', 'Section'];
+                                    subs.forEach(sub => { cieKeys.forEach(cie => { headers.push(`${sub.cleanName} ${cie.toUpperCase()}`); headers.push(`${sub.cleanName} ${cie.toUpperCase()} Att%`); }); });
+                                    headers.push('Total');
+                                    rows = students.map((s, i) => {
+                                        const row = [i+1, s.regNo||'', (s.name||'').replace(/,/g,' '), s.semester||s.sem||'', s.section||'A'];
+                                        let total = 0;
+                                        subs.forEach(sub => { const sm = (s.subjectMarks||{})[sub.id]||{}; cieKeys.forEach(cie => { row.push(sm[cie]!==undefined?sm[cie]:'-'); row.push(sm[cie+'_att']!=null?sm[cie+'_att']+'%':'-'); if(sm[cie]!==undefined) total+=parseFloat(sm[cie]); }); });
+                                        row.push(total); return row;
+                                    });
+                                    filename = `${dept}_Marks_${dlSubject === 'All' ? 'AllSubjects' : String(dlSubject).replace(/\s+/g,'_')}.csv`;
+                                } else if (dlDataType === 'performance') {
+                                    let allPerf = [];
+                                    const parseNum = (v) => { const pb = parseInt(v); return isNaN(pb) ? 0 : pb; };
+                                    const pConfig = {
+                                        excellent_threshold: parseNum(perfConfig.excellent_threshold) || 40,
+                                        low_threshold: parseNum(perfConfig.low_threshold) || 30
+                                    };
+                                    
+                                    students.forEach(student => {
+                                        const m = student.subjectMarks || {};
+                                        Object.entries(m).forEach(([subjId, sm]) => {
+                                            const subObj = subjects.find(s => s.id.toString() === subjId);
+                                            const subjName = subObj ? subObj.name : subjId;
+                                            
+                                            if (dlSubject !== 'All' && dlSubject != subjId) return;
+                                            cieKeys.forEach(cie => {
+                                                const score = sm[cie];
+                                                if (score !== undefined && score !== null && score !== '') {
+                                                    const scoreNum = parseFloat(score);
+                                                    const attVal = sm[cie+'_att'] != null ? parseFloat(sm[cie+'_att']) : null;
+                                                    let dbRemarks = sm[cie+'_remarks'] || null;
+                                                    
+                                                    let currentLowThreshold = pConfig.low_threshold;
+                                                    if (parsedSubjectTargets && parsedSubjectTargets[subjId]) {
+                                                        const targetPercent = parseFloat(parsedSubjectTargets[subjId]);
+                                                        currentLowThreshold = (targetPercent / 100) * 50; 
+                                                    }
+                                                    
+                                                    let cat;
+                                                    if (scoreNum >= pConfig.excellent_threshold && scoreNum >= currentLowThreshold) cat = 'excellent';
+                                                    else if (scoreNum >= currentLowThreshold) cat = 'average';
+                                                    else cat = 'low';
+                                                    
+                                                    let remark = dbRemarks || (cat === 'low' && attVal != null && attVal < 75 ? 'Needs Improvement' : cat === 'low' ? 'At Risk' : cat === 'excellent' ? 'Excellent Performance' : 'Good');
+                                                    if (dlPerfCategory === 'all' || dlPerfCategory === cat) {
+                                                        allPerf.push({ regNo: student.regNo, name: student.name, section: student.section, subject: subjName.replace(/\[.*?\]/g,'').trim(), cieType: cie.toUpperCase(), score: scoreNum, att: attVal, remarks: remark, phone: student.parentPhone || student.phone || '' });
+                                                    }
+                                                }
+                                            });
+                                        });
+                                    });
+                                    headers = ['Sl No', 'Reg No', 'Name', 'Section', 'Subject', 'CIE', 'Marks', 'Attendance', 'Remarks', 'Phone'];
+                                    rows = allPerf.map((r,i) => [i+1, r.regNo, (r.name||'').replace(/,/g,' '), r.section||'A', r.subject.replace(/,/g,' '), r.cieType, `${r.score}/50`, r.att!=null?`${r.att}%`:'N/A', (r.remarks||'').replace(/,/g,' '), r.phone]);
+                                    filename = `${dept}_${dlPerfCategory==='all'?'All':dlPerfCategory}_Performance.csv`;
+                                } else {
+                                    headers = ['Sl No', 'Reg No', 'Name', 'Semester', 'Section', 'Email', 'Phone', 'Parent Phone'];
+                                    rows = students.map((s,i) => [i+1, s.regNo||'', (s.name||'').replace(/,/g,' '), s.semester||s.sem||'', s.section||'A', s.email||'', s.phone||'', s.parentPhone||'']);
+                                    filename = `${dept}_StudentList.csv`;
+                                }
+
+                                if (rows.length === 0) { showToast('No data to download for the selected filters.', 'info'); return; }
+                                const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                                const url = URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url; link.download = filename;
+                                document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                                URL.revokeObjectURL(url);
+                                setShowDownloadModal(false);
+                                showToast('Download started', 'info');
+                            }}
+                        ><Download size={16} /> Download CSV</button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     const renderStudentProfileModal = () => {
         if (!showProfileModal || !selectedStudentProfile) return null;
 
@@ -2609,38 +3040,29 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                                 setTimeout(() => setIsTableLoading(false), 30);
                                 return;
                             }
+                            if (e.target.value === 'ALL') {
+                                setSelectedSubject({ id: 'ALL', name: 'All Subjects' });
+                                setTimeout(() => setIsTableLoading(false), 30);
+                                return;
+                            }
                             const sub = subjects.find(s => s.id === parseInt(e.target.value));
                             setSelectedSubject(sub);
                             setTimeout(() => setIsTableLoading(false), 30);
-                        }} style={!selectedSemester || selectedSemester === 'all' ? { opacity: 0.6, cursor: 'not-allowed' } : {}}>
+                        }} style={!selectedSemester || selectedSemester === 'all' ? { opacity: 0.6, cursor: 'not-allowed', marginRight: '10px' } : { marginRight: '10px' }}>
                             <option value="">{!selectedSemester || selectedSemester === 'all' ? '← Select Semester First' : 'Select Subject'}</option>
-                            {selectedSemester && selectedSemester !== 'all' && (() => {
-                                const seen = new Set();
-                                // First pass: collect all clean names that have a Theory version
-                                const theoryNames = new Set();
-                                subjects.forEach(sub => {
-                                    if (sub.name === 'IC') return;
-                                    if (sub.semester != selectedSemester) return;
-                                    if (/\(Theory\)/i.test(sub.name)) {
-                                        theoryNames.add(sub.name.replace(/\s*\([\w\s]+\)/gi, '').trim());
-                                    }
-                                });
-                                return subjects.filter(sub => {
-                                    if (sub.name === 'IC') return false;
-                                    if (sub.semester != selectedSemester) return false;
-
-                                    const cleanName = sub.name.replace(/\s*\([\w\s]+\)/gi, '').trim();
-                                    // Skip Lab version if a Theory version exists
-                                    if (/\(Lab\)/i.test(sub.name) && theoryNames.has(cleanName)) return false;
-                                    if (seen.has(cleanName)) return false;
-                                    seen.add(cleanName);
-                                    return true;
-                                }).map(sub => {
-                                    const cleanName = sub.name.replace(/\s*\([\w\s]+\)/gi, '').trim();
-                                    return <option key={sub.id} value={sub.id}>{cleanName}</option>;
-                                });
-                            })()}
-                        </select><button className={styles.saveBtn} onClick={saveMarks} disabled={selectedSemester === 'all' || !selectedSubject}><Save size={16} /> Save Changes</button></div>
+                            <option value="ALL">All Subjects</option>
+                            {subjects.filter(s => s.semester == selectedSemester && s.name !== 'IC').map(sub => (
+                                <option key={sub.id} value={sub.id}>{sub.name}</option>
+                            ))}
+                        </select>
+                        <button
+                            onClick={() => { setDlDataType('marks'); setShowDownloadModal(true); }}
+                            className={styles.secondaryBtn}
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0.75rem 1rem' }}
+                        >
+                            <Download size={16} /> Download
+                        </button>
+                        <button className={styles.saveBtn} onClick={saveMarks} disabled={selectedSemester === 'all' || !selectedSubject}><Save size={16} /> Save Changes</button></div>
                 )}
             </div>
                 {loading || isTableLoading ? (
@@ -2650,30 +3072,163 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                     </div>
                 ) : selectedSemester !== 'all' && selectedSemester && selectedSubject ? (
                     <>
-                        <p className={styles.helperText}>Edit marks directly in the table. Changes are tracked locally until saved. Max Marks: CIE-1 to CIE-5 (50 each) - Total (250)</p>
-                        <div className={styles.tableWrapper}>
-                            <table className={styles.table} style={selectedCieType === 'all' ? { minWidth: '1800px' } : {}}><thead><tr><th>Sl. No.</th><th style={{ width: '150px', minWidth: '150px' }}>Reg No</th><th style={{ width: '350px', minWidth: '350px' }}>Student Name</th>
-                                {['cie1', 'all'].includes(selectedCieType) && <th style={['cie1', 'all'].includes(selectedCieType) ? { background: '#eff6ff', color: '#1d4ed8' } : {}}>CIE-1 (50)</th>}
-                                {['cie1', 'all'].includes(selectedCieType) && <th style={{ background: '#f0fdf4', color: '#15803d' }}>Att (%)</th>}
-                                {['cie2', 'all'].includes(selectedCieType) && <th style={['cie2', 'all'].includes(selectedCieType) ? { background: '#eff6ff', color: '#1d4ed8' } : {}}>CIE-2 (50)</th>}
-                                {['cie2', 'all'].includes(selectedCieType) && <th style={{ background: '#f0fdf4', color: '#15803d' }}>Att (%)</th>}
-                                {['cie3', 'all'].includes(selectedCieType) && <th style={['cie3', 'all'].includes(selectedCieType) ? { background: '#eff6ff', color: '#1d4ed8' } : {}}>CIE-3 (50)</th>}
-                                {['cie3', 'all'].includes(selectedCieType) && <th style={{ background: '#f0fdf4', color: '#15803d' }}>Att (%)</th>}
-                                {['cie4', 'all'].includes(selectedCieType) && <th style={['cie4', 'all'].includes(selectedCieType) ? { background: '#eff6ff', color: '#1d4ed8' } : {}}>CIE-4 (50)</th>}
-                                {['cie4', 'all'].includes(selectedCieType) && <th style={{ background: '#f0fdf4', color: '#15803d' }}>Att (%)</th>}
-                                {['cie5', 'all'].includes(selectedCieType) && <th style={['cie5', 'all'].includes(selectedCieType) ? { background: '#eff6ff', color: '#1d4ed8' } : {}}>CIE-5 (50)</th>}
-                                {['cie5', 'all'].includes(selectedCieType) && <th style={{ background: '#f0fdf4', color: '#15803d' }}>Att (%)</th>}
-                                <th>Total (250)</th><th style={{ background: '#fefce8', color: '#a16207', width: '250px', minWidth: '250px' }}>Remarks</th></tr></thead><tbody>{students.filter(s => selectedSemester === 'all' || s.semester == selectedSemester).map((student, index) => (
-                                    <HODStudentRow
-                                        key={student.id}
-                                        student={student}
-                                        index={index}
-                                        editMark={editingMarks[student.id] || {}}
-                                        selectedCieType={selectedCieType}
-                                        styles={styles}
-                                        handleMarkChange={handleMarkChange}
-                                    />
-                                ))}</tbody></table></div></>) : (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <p className={styles.helperText} style={{ margin: 0 }}>Edit marks directly in the table. Changes are tracked locally until saved. Max Marks: CIE-1 to CIE-5 (50 each) - Total (250)</p>
+                            {selectedSubject?.id !== 'ALL' && (() => {
+                                // Compute single-subject pass % locally from editingMarks
+                                const targetVal = parsedSubjectTargets[selectedSubject.id];
+                                const passThreshold = targetVal ? (parseFloat(targetVal) / 100) * 50 : (parseInt(perfConfig?.average_threshold_min) || 20);
+                                let total = 0, passed = 0;
+                                Object.keys(editingMarks).forEach(studentId => {
+                                    const sm = editingMarks[studentId] || {};
+                                    ['cie1', 'cie2', 'cie3', 'cie4', 'cie5'].forEach(cie => {
+                                        const score = sm[cie];
+                                        if (score !== undefined && score !== null && score !== '') {
+                                            total++;
+                                            if (parseFloat(score) >= passThreshold) passed++;
+                                        }
+                                    });
+                                });
+                                const passPercent = total > 0 ? Math.round((passed * 100 / total) * 10) / 10 : 0;
+                                return (
+                                <div style={{ background: passPercent >= 70 ? '#f0fdf4' : passPercent >= 40 ? '#eff6ff' : '#fef2f2', color: passPercent >= 70 ? '#16a34a' : passPercent >= 40 ? '#1d4ed8' : '#dc2626', padding: '4px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold', border: `1px solid ${passPercent >= 70 ? '#86efac' : passPercent >= 40 ? '#bfdbfe' : '#fca5a5'}` }}>
+                                    {targetVal ? `Target: ${targetVal}% | Pass: ${passPercent}%` : `Overall Pass: ${passPercent}%`}
+                                </div>
+                                );
+                            })()}
+                        </div>
+                        <div className={styles.tableWrapper} style={{ overflowX: 'auto', maxWidth: '100%' }}>
+                            <table className={styles.table} style={selectedSubject?.id === 'ALL' ? { width: 'max-content', minWidth: '100%', borderCollapse: 'collapse' } : (selectedCieType === 'all' ? { minWidth: '1800px' } : {})}>
+                                {selectedSubject?.id === 'ALL' ? (
+                                    <>
+                                        <thead>
+                                            <tr>
+                                                <th rowSpan={2} style={{ width: '50px', minWidth: '50px', borderRight: '1px solid #e2e8f0', backgroundColor: '#f1f5f9', verticalAlign: 'middle', textAlign: 'center' }}>Sl. No.</th>
+                                                <th rowSpan={2} style={{ width: '130px', minWidth: '130px', borderRight: '1px solid #e2e8f0', backgroundColor: '#f1f5f9', verticalAlign: 'middle', textAlign: 'center' }}>Reg No</th>
+                                                <th rowSpan={2} style={{ width: '220px', minWidth: '220px', borderRight: '1px solid #e2e8f0', backgroundColor: '#f1f5f9', verticalAlign: 'middle', textAlign: 'center' }}>Student Name</th>
+                                                {validSubjectsForSemester.map(sub => {
+                                                    // Compute pass % locally from loaded marks data
+                                                    let passPercent = 0;
+                                                    const targetVal = parsedSubjectTargets[sub.id];
+                                                    const passThreshold = targetVal ? (parseFloat(targetVal) / 100) * 50 : (parseInt(perfConfig?.average_threshold_min) || 20);
+                                                    let subTotal = 0, subPassed = 0;
+                                                    Object.keys(allSubjectsEditingMarks).forEach(studentId => {
+                                                        const subMarks = allSubjectsEditingMarks[studentId]?.[sub.id];
+                                                        if (!subMarks) return;
+                                                        ['cie1', 'cie2', 'cie3', 'cie4', 'cie5'].forEach(cie => {
+                                                            const score = subMarks[cie];
+                                                            if (score !== undefined && score !== null && score !== '') {
+                                                                subTotal++;
+                                                                if (parseFloat(score) >= passThreshold) subPassed++;
+                                                            }
+                                                        });
+                                                    });
+                                                    passPercent = subTotal > 0 ? Math.round((subPassed * 100 / subTotal) * 10) / 10 : 0;
+                                                    const passLabel = targetVal ? `Target: ${targetVal}%` : `Pass: ${passPercent}%`;
+                                                    return (
+                                                    <th key={sub.id} colSpan={selectedCieType === 'all' ? 10 : 2} style={{ textAlign: 'center', background: '#e2e8f0', color: '#0f172a', borderBottom: '1px solid #cbd5e1', borderRight: '1px solid #cbd5e1', padding: '6px' }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                            <span>{sub.cleanName}</span>
+                                                            <span style={{ fontSize: '0.75rem', color: passPercent >= 70 ? '#16a34a' : passPercent >= 40 ? '#1d4ed8' : '#dc2626', fontWeight: 'bold', marginTop: '2px' }}>
+                                                                {targetVal ? `Target: ${targetVal}% | Pass: ${passPercent}%` : `Pass: ${passPercent}%`}
+                                                            </span>
+                                                        </div>
+                                                    </th>
+                                                    );
+                                                })}
+                                                <th rowSpan={2} style={{ width: '200px', minWidth: '200px', backgroundColor: '#fefce8', color: '#a16207', verticalAlign: 'middle', borderLeft: '1px solid #e2e8f0', textAlign: 'center' }}>Overall Status</th>
+                                            </tr>
+                                            <tr>
+                                                {validSubjectsForSemester.map(sub => (
+                                                    <React.Fragment key={`subhead-${sub.id}`}>
+                                                        {['cie1', 'all'].includes(selectedCieType) && (
+                                                            <>
+                                                                <th style={{ background: '#eff6ff', color: '#1d4ed8', width: '55px', minWidth: '55px', padding: '8px 2px', fontSize: '0.8rem', textAlign: 'center' }}>C1</th>
+                                                                <th style={{ background: '#f0fdf4', color: '#15803d', width: '55px', minWidth: '55px', padding: '8px 2px', fontSize: '0.8rem', textAlign: 'center', borderRight: selectedCieType === 'cie1' ? '1px solid #e2e8f0' : 'none' }}>A1</th>
+                                                            </>
+                                                        )}
+                                                        {['cie2', 'all'].includes(selectedCieType) && (
+                                                            <>
+                                                                <th style={{ background: '#eff6ff', color: '#1d4ed8', width: '55px', minWidth: '55px', padding: '8px 2px', fontSize: '0.8rem', textAlign: 'center' }}>C2</th>
+                                                                <th style={{ background: '#f0fdf4', color: '#15803d', width: '55px', minWidth: '55px', padding: '8px 2px', fontSize: '0.8rem', textAlign: 'center', borderRight: selectedCieType === 'cie2' ? '1px solid #e2e8f0' : 'none' }}>A2</th>
+                                                            </>
+                                                        )}
+                                                        {['cie3', 'all'].includes(selectedCieType) && (
+                                                            <>
+                                                                <th style={{ background: '#eff6ff', color: '#1d4ed8', width: '55px', minWidth: '55px', padding: '8px 2px', fontSize: '0.8rem', textAlign: 'center' }}>C3</th>
+                                                                <th style={{ background: '#f0fdf4', color: '#15803d', width: '55px', minWidth: '55px', padding: '8px 2px', fontSize: '0.8rem', textAlign: 'center', borderRight: selectedCieType === 'cie3' ? '1px solid #e2e8f0' : 'none' }}>A3</th>
+                                                            </>
+                                                        )}
+                                                        {['cie4', 'all'].includes(selectedCieType) && (
+                                                            <>
+                                                                <th style={{ background: '#eff6ff', color: '#1d4ed8', width: '55px', minWidth: '55px', padding: '8px 2px', fontSize: '0.8rem', textAlign: 'center' }}>C4</th>
+                                                                <th style={{ background: '#f0fdf4', color: '#15803d', width: '55px', minWidth: '55px', padding: '8px 2px', fontSize: '0.8rem', textAlign: 'center', borderRight: selectedCieType === 'cie4' ? '1px solid #e2e8f0' : 'none' }}>A4</th>
+                                                            </>
+                                                        )}
+                                                        {['cie5', 'all'].includes(selectedCieType) && (
+                                                            <>
+                                                                <th style={{ background: '#eff6ff', color: '#1d4ed8', width: '55px', minWidth: '55px', padding: '8px 2px', fontSize: '0.8rem', textAlign: 'center' }}>C5</th>
+                                                                <th style={{ background: '#f0fdf4', color: '#15803d', width: '55px', minWidth: '55px', padding: '8px 2px', fontSize: '0.8rem', textAlign: 'center', borderRight: '1px solid #e2e8f0' }}>A5</th>
+                                                            </>
+                                                        )}
+                                                    </React.Fragment>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {students.filter(s => selectedSemester === 'all' || s.semester == selectedSemester).map((student, index) => (
+                                                <HODAllSubjectsStudentRow
+                                                    key={student.id}
+                                                    student={student}
+                                                    index={index}
+                                                    editMarks={allSubjectsEditingMarks[student.id] || {}}
+                                                    validSubjects={validSubjectsForSemester}
+                                                    selectedCieType={selectedCieType}
+                                                    styles={styles}
+                                                    handleMarkChange={handleMarkChange}
+                                                    perfConfig={perfConfig}
+                                                />
+                                            ))}
+                                        </tbody>
+                                    </>
+                                ) : (
+                                        <>
+                                            <thead>
+                                                <tr>
+                                                    <th style={{ textAlign: 'center' }}>Sl. No.</th>
+                                                    <th style={{ width: '150px', minWidth: '150px', textAlign: 'center' }}>Reg No</th>
+                                                    <th style={{ width: '350px', minWidth: '350px', textAlign: 'center' }}>Student Name</th>
+                                                    {['cie1', 'all'].includes(selectedCieType) && <th style={['cie1', 'all'].includes(selectedCieType) ? { background: '#eff6ff', color: '#1d4ed8' } : {}}>CIE-1 (50)</th>}
+                                                    {['cie1', 'all'].includes(selectedCieType) && <th style={{ background: '#f0fdf4', color: '#15803d' }}>Att (%)</th>}
+                                                    {['cie2', 'all'].includes(selectedCieType) && <th style={['cie2', 'all'].includes(selectedCieType) ? { background: '#eff6ff', color: '#1d4ed8' } : {}}>CIE-2 (50)</th>}
+                                                    {['cie2', 'all'].includes(selectedCieType) && <th style={{ background: '#f0fdf4', color: '#15803d' }}>Att (%)</th>}
+                                                    {['cie3', 'all'].includes(selectedCieType) && <th style={['cie3', 'all'].includes(selectedCieType) ? { background: '#eff6ff', color: '#1d4ed8' } : {}}>CIE-3 (50)</th>}
+                                                    {['cie3', 'all'].includes(selectedCieType) && <th style={{ background: '#f0fdf4', color: '#15803d' }}>Att (%)</th>}
+                                                    {['cie4', 'all'].includes(selectedCieType) && <th style={['cie4', 'all'].includes(selectedCieType) ? { background: '#eff6ff', color: '#1d4ed8' } : {}}>CIE-4 (50)</th>}
+                                                    {['cie4', 'all'].includes(selectedCieType) && <th style={{ background: '#f0fdf4', color: '#15803d' }}>Att (%)</th>}
+                                                    {['cie5', 'all'].includes(selectedCieType) && <th style={['cie5', 'all'].includes(selectedCieType) ? { background: '#eff6ff', color: '#1d4ed8' } : {}}>CIE-5 (50)</th>}
+                                                    {['cie5', 'all'].includes(selectedCieType) && <th style={{ background: '#f0fdf4', color: '#15803d' }}>Att (%)</th>}
+                                                    <th style={{ textAlign: 'center' }}>Total (250)</th><th style={{ background: '#fefce8', color: '#a16207', width: '250px', minWidth: '250px', textAlign: 'center' }}>Remarks</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {students.filter(s => selectedSemester === 'all' || s.semester == selectedSemester).map((student, index) => (
+                                                    <HODStudentRow
+                                                        key={student.id}
+                                                        student={student}
+                                                        index={index}
+                                                        editMark={editingMarks[student.id] || {}}
+                                                        selectedCieType={selectedCieType}
+                                                        styles={styles}
+                                                        handleMarkChange={handleMarkChange}
+                                                        perfConfig={perfConfig}
+                                                    />
+                                                ))}
+                                            </tbody>
+                                        </>
+                                    )}
+                                </table>
+                        </div></>) : (
                     <div style={{ padding: '4rem 2rem', textAlign: 'center', color: '#64748b', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', margin: '1rem' }}>
                         <div style={{ marginBottom: '1rem' }}>
                             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
@@ -2763,10 +3318,12 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                 const filteredExcellent = applyFilters(hodExcellentList);
                 const filteredAverage = applyFilters(hodAverageList);
                 const filteredLow = applyFilters(hodLowList);
+                const filteredPassedTarget = applyFilters(hodPassedTargetList);
                 const perfTabs = [
                     { id: 'excellent', label: 'Excellent Performance', color: '#10b981', bg: '#f0fdf4', borderColor: '#bcf0da', icon: <Award size={20} />, list: filteredExcellent, studentCount: getUniqueStudentCount(filteredExcellent), description: `Students who scored more than ${perfConfig.excellent_threshold || 40}/50 marks.` },
-                    { id: 'average', label: 'Average Performance', color: '#f59e0b', bg: '#fffbeb', borderColor: '#fde68a', icon: <ClipboardList size={20} />, list: filteredAverage, studentCount: getUniqueStudentCount(filteredAverage), description: `Students who scored between ${perfConfig.average_threshold_min || 20} and ${perfConfig.excellent_threshold || 40} marks.` },
-                    { id: 'low', label: 'Low Performance', color: '#ef4444', bg: '#fef2f2', borderColor: '#fecaca', icon: <AlertTriangle size={20} />, list: filteredLow, studentCount: getUniqueStudentCount(filteredLow), description: `Students who scored below ${perfConfig.average_threshold_min || 20} marks.` }
+                    { id: 'average', label: 'Average Performance', color: '#f59e0b', bg: '#fffbeb', borderColor: '#fde68a', icon: <ClipboardList size={20} />, list: filteredAverage, studentCount: getUniqueStudentCount(filteredAverage), description: `Students who scored between ${perfConfig.low_threshold || 20} and ${perfConfig.excellent_threshold || 40} marks.` },
+                    { id: 'low', label: 'Low Performance', color: '#ef4444', bg: '#fef2f2', borderColor: '#fecaca', icon: <AlertTriangle size={20} />, list: filteredLow, studentCount: getUniqueStudentCount(filteredLow), description: `Students who scored below ${perfConfig.low_threshold || 20} marks.` },
+                    { id: 'passedTarget', label: 'Passed Students', color: '#3b82f6', bg: '#eff6ff', borderColor: '#bfdbfe', icon: <CheckCircle size={20} />, list: filteredPassedTarget, studentCount: getUniqueStudentCount(filteredPassedTarget), description: `Students who passed based on specific subject targets, or average/excellent performance where no target is set.` }
                 ];
                 const activeConfig = perfTabs.find(t => t.id === hodPerformanceTab) || perfTabs[2];
                 const filteredList = activeConfig.list;
@@ -2832,6 +3389,13 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                                 </p>
                             </div>
                             <div style={{ display: 'flex', gap: '10px' }}>
+                                <button
+                                    onClick={() => { setDlDataType('performance'); setShowDownloadModal(true); }}
+                                    className={styles.secondaryBtn}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                                >
+                                    <Download size={16} /> Download
+                                </button>
                                 <button
                                     onClick={() => { setEditingPerfConfig({ ...perfConfig }); setShowSettingsModal(true); }}
                                     className={styles.settingsBtn}
@@ -2932,7 +3496,7 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                                             <th>Marks</th>
                                             <th>Attendance</th>
                                             <th>Remarks</th>
-                                            <th>{hodPerformanceTab === 'low' ? 'Action' : 'Phone'}</th>
+                                            <th>Phone</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -2989,15 +3553,6 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                                                             <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#1e293b' }}>
                                                                 {item.parentPhone || 'No Contact'}
                                                             </span>
-                                                            {hodPerformanceTab === 'low' && (
-                                                                <button
-                                                                    onClick={() => showToast(`Alert sent to parent of ${item.name}`)}
-                                                                    title="Notify Parent"
-                                                                    style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fee2e2', padding: '5px 10px', borderRadius: '8px', alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer' }}
-                                                                >
-                                                                    <Phone size={14} /> Notify Parent
-                                                                </button>
-                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -3019,7 +3574,7 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                         {/* Settings Modal for Performance Thresholds */}
                         {showSettingsModal && (
                             <div className={styles.modalOverlay} onClick={() => setShowSettingsModal(false)}>
-                                <div className={styles.modalContent} style={{ maxWidth: '450px' }} onClick={e => e.stopPropagation()}>
+                                <div className={styles.modalContent} style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
                                     <div className={styles.modalHeader}>
                                         <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Edit size={20} /> Performance Thresholds</h3>
                                         <button className={styles.closeBtn} onClick={() => setShowSettingsModal(false)}><X size={24} /></button>
@@ -3030,10 +3585,6 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                                             <div className={styles.formGroup}>
                                                 <label style={{ fontWeight: 600 }}>Excellent Threshold (marks above this = Excellent)</label>
                                                 <input type="number" min="0" max="50" className={styles.input} value={editingPerfConfig.excellent_threshold || ''} onChange={e => setEditingPerfConfig({ ...editingPerfConfig, excellent_threshold: e.target.value })} />
-                                            </div>
-                                            <div className={styles.formGroup}>
-                                                <label style={{ fontWeight: 600 }}>Average Threshold (marks above this = Average)</label>
-                                                <input type="number" min="0" max="50" className={styles.input} value={editingPerfConfig.average_threshold_min || ''} onChange={e => setEditingPerfConfig({ ...editingPerfConfig, average_threshold_min: e.target.value })} />
                                             </div>
                                             <div className={styles.formGroup}>
                                                 <label style={{ fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
@@ -3047,6 +3598,80 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                                                 <input type="number" min="0" max="100" className={styles.input} value={editingPerfConfig.low_attendance_threshold || ''} onChange={e => setEditingPerfConfig({ ...editingPerfConfig, low_attendance_threshold: e.target.value })} />
                                             </div>
                                         </div>
+
+                                        <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid #e2e8f0' }}>
+                                            <h4 style={{ margin: '0 0 1rem 0', color: '#1e293b' }}>Subject-Specific Pass Targets</h4>
+                                            <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1rem' }}>Set a target pass percentage for specific subjects. This overrides the global thresholds to determine passing students in the Pass/Fail view.</p>
+                                            
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px auto', gap: '0.5rem', marginBottom: '1rem', alignItems: 'end' }}>
+                                                <div className={styles.formGroup}>
+                                                    <label style={{ fontSize: '0.85rem' }}>Subject</label>
+                                                    <select className={styles.input} value={targetSubjectId} onChange={e => setTargetSubjectId(e.target.value)}>
+                                                        <option value="">Select subject</option>
+                                                        {subjects.map(sub => (
+                                                            <option key={sub.id} value={sub.id}>{sub.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className={styles.formGroup}>
+                                                    <label style={{ fontSize: '0.85rem' }}>Target (%)</label>
+                                                    <input type="number" min="0" max="100" placeholder="e.g. 60" className={styles.input} value={targetPercentage} onChange={e => setTargetPercentage(e.target.value)} />
+                                                </div>
+                                                <button 
+                                                    className={styles.primaryBtn} 
+                                                    style={{ padding: '0.65rem 1rem' }}
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        if (!targetSubjectId || !targetPercentage) return;
+                                                        let currentTargets = {};
+                                                        try {
+                                                            currentTargets = editingPerfConfig.subject_targets ? JSON.parse(editingPerfConfig.subject_targets) : {};
+                                                        } catch(err) {}
+                                                        currentTargets[targetSubjectId] = targetPercentage;
+                                                        setEditingPerfConfig({ ...editingPerfConfig, subject_targets: JSON.stringify(currentTargets) });
+                                                        setTargetSubjectId('');
+                                                        setTargetPercentage('');
+                                                    }}
+                                                >
+                                                    Add
+                                                </button>
+                                            </div>
+                                            
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                {(() => {
+                                                    let targets = {};
+                                                    try {
+                                                        targets = editingPerfConfig.subject_targets ? JSON.parse(editingPerfConfig.subject_targets) : {};
+                                                    } catch(err) {}
+                                                    const targetEntries = Object.entries(targets);
+                                                    if (targetEntries.length === 0) return <div style={{ fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic' }}>No custom targets set.</div>;
+                                                    
+                                                    return targetEntries.map(([sId, pct]) => {
+                                                        const sub = subjects.find(s => String(s.id) === String(sId));
+                                                        return (
+                                                            <div key={sId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                                                <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{sub ? sub.name : `Unknown (${sId})`}</span>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                                    <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: 600 }}>{pct}% <span style={{ color: '#64748b', fontWeight: 400, fontSize: '0.8rem' }}>({((parseFloat(pct)/100)*50).toFixed(1)} marks)</span></span>
+                                                                    <button 
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            const newT = { ...targets };
+                                                                            delete newT[sId];
+                                                                            setEditingPerfConfig({ ...editingPerfConfig, subject_targets: JSON.stringify(newT) });
+                                                                        }}
+                                                                        style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                                                    >
+                                                                        <Trash2 size={16} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    });
+                                                })()}
+                                            </div>
+                                        </div>
+
                                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
                                             <button className={styles.secondaryBtn} onClick={() => setShowSettingsModal(false)}>Cancel</button>
                                             <button className={styles.primaryBtn} onClick={async () => {
@@ -3349,7 +3974,7 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 1fr) minmax(150px, 1fr) auto', gap: '1.5rem', alignItems: 'flex-end' }}>
                                 <div>
                                     <label style={{ display: 'block', marginBottom: '0.6rem', fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>Select Subject</label>
-                                    <select className={styles.select} id="unlockSubject" style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontSize: '0.9rem', color: '#1e293b' }}>
+                                    <select className={styles.select} id="unlockSubject" style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', fontSize: '0.9rem', color: '#1e293b' }}>
                                         <option value="">-- Choose Subject --</option>
                                         {subjects.filter(s => s.name !== 'IC').map(subject => (
                                             <option key={subject.id} value={subject.id}>{subject.name}</option>
@@ -3358,7 +3983,7 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', marginBottom: '0.6rem', fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>CIE Type</label>
-                                    <select className={styles.select} id="unlockCIE" style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white', fontSize: '0.9rem', color: '#1e293b' }}>
+                                    <select className={styles.select} id="unlockCIE" style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', fontSize: '0.9rem', color: '#1e293b' }}>
                                         <option value="CIE1">CIE-1</option>
                                         <option value="CIE2">CIE-2</option>
                                         <option value="CIE3">CIE-3</option>
@@ -3525,7 +4150,7 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                                             <label key={num} style={{
                                                 flex: 1,
                                                 padding: '0.75rem',
-                                                border: '1px solid #cbd5e1',
+                                                border: '1px solid #e2e8f0',
                                                 borderRadius: '8px',
                                                 textAlign: 'center',
                                                 cursor: 'pointer',
@@ -3684,7 +4309,7 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                                                                     fontSize: '0.85rem',
                                                                     background: '#f8fafc',
                                                                     color: '#2563eb',
-                                                                    border: '1px solid #cbd5e1',
+                                                                    border: '1px solid #e2e8f0',
                                                                     display: 'inline-flex',
                                                                     alignItems: 'center',
                                                                     gap: '6px'
@@ -4076,6 +4701,7 @@ const HODDashboard = ({ isSpectator = false, spectatorDept = null }) => {
                 {!isMyDept ? (<AccessDeniedView />) : renderContent()}
             </div>
             {renderStudentProfileModal()}
+            {renderDownloadModal()}
             {renderResetPasswordModal()}
             {renderEditStudentModal()}
             {renderStudentUploadModal()}

@@ -182,14 +182,14 @@ public class StudentService {
         return students.stream().map(student -> {
             List<com.example.ia.entity.CieMark> marksList = cieMarkRepository.findByStudent_Id(student.getId());
             java.util.Map<String, Double> marksMap = new java.util.HashMap<>();
-            java.util.Map<String, java.util.Map<String, Double>> subjectMarks = new java.util.HashMap<>();
+            java.util.Map<String, java.util.Map<String, Object>> subjectMarks = new java.util.HashMap<>();
 
             int cie1Count = 0;
             double totalCie1Marks = 0.0;
 
             for (com.example.ia.entity.CieMark mark : marksList) {
                 // Determine key based on cieType (e.g., CIE1, CIE2)
-                String key = mark.getCieType().toLowerCase().replace(" ", "");
+                String key = mark.getCieType().toLowerCase().replace(" ", "").replace("-", "");
                 Double markValue = mark.getMarks() != null ? mark.getMarks() : 0.0;
 
                 // Add to flat marksMap (summing them up to avoid overwrite loss in pie charts)
@@ -199,6 +199,12 @@ public class StudentService {
                 String subName = mark.getSubject().getName();
                 subjectMarks.putIfAbsent(subName, new java.util.HashMap<>());
                 subjectMarks.get(subName).put(key, markValue);
+                if (mark.getAttendancePercentage() != null) {
+                    subjectMarks.get(subName).put(key + "_att", mark.getAttendancePercentage());
+                }
+                if (mark.getRemarks() != null && !mark.getRemarks().isEmpty()) {
+                    subjectMarks.get(subName).put(key + "_remarks", mark.getRemarks());
+                }
 
                 // Count for CIE-1 completion (only if marks are entered)
                 if (key.equals("cie1") && mark.getMarks() != null) {

@@ -365,7 +365,7 @@ export const CIEStatsWidget = memo(({ conducted = 65, pending = 15, graded = 20 
                 maintainAspectRatio: false
             }} />
             <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-                <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#10b981' }}>85%</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#10b981' }}>{completedPercent}%</div>
                 <div style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 600 }}>Completed</div>
             </div>
         </div>

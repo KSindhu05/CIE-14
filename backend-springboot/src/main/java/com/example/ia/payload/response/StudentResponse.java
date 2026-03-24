@@ -14,7 +14,7 @@ public class StudentResponse {
     private String phone;
     private String parentPhone;
     private Map<String, Double> marks;
-    private Map<String, Map<String, Double>> subjectMarks;
+    private Map<String, Map<String, Object>> subjectMarks;
     private Boolean isCie1Complete;
     private Double overallCie1Percentage;
     private String overallRemarks;
@@ -25,7 +25,7 @@ public class StudentResponse {
     private String mentoringStatus = "Done";
 
     public StudentResponse(Student student, Map<String, Double> marks,
-            Map<String, Map<String, Double>> subjectMarks,
+            Map<String, Map<String, Object>> subjectMarks,
             Boolean isCie1Complete,
             Double overallCie1Percentage) {
         this.id = student.getId();
@@ -98,7 +98,7 @@ public class StudentResponse {
         return mentoringStatus;
     }
 
-    public Map<String, Map<String, Double>> getSubjectMarks() {
+    public Map<String, Map<String, Object>> getSubjectMarks() {
         return subjectMarks;
     }
 
