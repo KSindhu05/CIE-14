@@ -219,7 +219,7 @@ code = code.replace(marksRegex, newMarksRender);
 
 // 4. Replace Performance Tab Render Code
 const perfRegex = /\{viewMode === 'performance' && \(\s*<table className=\{styles\.table\}[\s\S]*?<\/table>\s*\)\}/;
-const newPerfRender = \`
+const newPerfRender = `
                 {viewMode === 'performance' && (() => {
                     const applyFilters = (list) => list
                         .filter(item => perfSubjectFilter === 'All' || item.subject === perfSubjectFilter)
@@ -337,7 +337,7 @@ const newPerfRender = \`
                         </div>
                     );
                 })()}
-\`;
+`;
 code = code.replace(perfRegex, newPerfRender);
 
 

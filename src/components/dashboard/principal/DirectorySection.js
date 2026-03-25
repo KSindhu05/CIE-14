@@ -128,6 +128,9 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
 
     const [internalSelectedStudent, setInternalSelectedStudent] = useState(null);
 
+    // Removed duplicated injected state (it's already declared below around line 217)
+
+
     // State for students fetched from API
     const [apiStudents, setApiStudents] = useState([]);
     const [localLoading, setLocalLoading] = useState(false);
@@ -195,13 +198,13 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
     }, [apiStudents, semester]);
 
     const perfConfig = { excellent_threshold: 40, average_threshold_min: 20 };
-    
+
     const processedPerfData = useMemo(() => {
         let excellent = [], average = [], low = [], passed = [];
         paginatedStudents.forEach(student => {
             const m = student.subjectMarks || {};
             let totalA = 0, totalP = 0;
-            
+
             Object.entries(m).forEach(([subjName, sm]) => {
                 ['cie1', 'cie2', 'cie3', 'cie4', 'cie5'].forEach(cieType => {
                     const score = sm[cieType];
@@ -209,7 +212,7 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                         const scoreNum = parseFloat(score);
                         const attVal = sm[cieType + '_att'] != null ? parseFloat(sm[cieType + '_att']) : null;
                         const dbRemarks = sm[cieType + '_remarks'] || null;
-                        
+
                         // Auto-generate remarks if none exist
                         let autoRemarks = dbRemarks;
                         if (!autoRemarks) {
@@ -221,7 +224,7 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                             else if (scoreNum >= perfConfig.excellent_threshold && (attVal == null || attVal >= 75)) autoRemarks = 'Excellent Performance';
                             else autoRemarks = 'Good – On Track';
                         }
-                        
+
                         const entry = { ...student, subject: subjName, subjectClean: subjName.replace(/\[.*?\]/g, '').trim(), cieType: cieType.toUpperCase(), score: scoreNum, attendance: attVal, remarksText: autoRemarks };
                         if (scoreNum >= perfConfig.excellent_threshold) excellent.push(entry);
                         else if (scoreNum >= perfConfig.average_threshold_min) average.push(entry);
@@ -473,7 +476,7 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' }} onClick={() => setShowDownloadModal(false)}>
                     <div style={{ background: 'white', borderRadius: '16px', width: '90%', maxWidth: '560px', padding: '2rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', position: 'relative', maxHeight: '85vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
                         <button style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }} onClick={() => setShowDownloadModal(false)}><X size={22} color="#64748b" /></button>
-                        
+
                         <div style={{ marginBottom: '1.5rem' }}>
                             <h3 style={{ margin: '0 0 4px', color: '#0f172a', fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <Download size={22} color="#3b82f6" /> Download Data
@@ -577,54 +580,122 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                                         const matchSec = !secFilter || secFilter.includes(s.section);
                                         return matchSem && matchSec;
                                     });
-                                    const cieKeys = dlCies.includes('All') || dlCies.length === 0 ? ['cie1','cie2','cie3','cie4','cie5'] : dlCies.map(c => c.toLowerCase());
+                                    const cieKeys = dlCies.includes('All') || dlCies.length === 0 ? ['cie1', 'cie2', 'cie3', 'cie4', 'cie5'] : dlCies.map(c => c.toLowerCase());
                                     const dept = selectedDept?.id || 'dept';
                                     let headers, rows, filename;
 
                                     if (dlDataType === 'marks') {
-                                        const subs = dlSubject === 'All' ? derivedSubjects : derivedSubjects.filter(s => s.id === dlSubject);
-                                        headers = ['Sl No', 'Reg No', 'Name', 'Semester', 'Section'];
-                                        subs.forEach(sub => { cieKeys.forEach(cie => { headers.push(`${sub.cleanName} ${cie.toUpperCase()}`); headers.push(`${sub.cleanName} ${cie.toUpperCase()} Att%`); }); });
-                                        headers.push('Total');
+                                        let selectedCleanName = null;
+                                        if (dlSubject !== 'All') {
+                                            const matchingTarget = derivedSubjects.find(s => s.id === dlSubject);
+                                            if (matchingTarget) {
+                                                selectedCleanName = matchingTarget.cleanName.replace(/\s*\(Lab\)\s*|\s*\(Theory\)\s*|\s*-l\s*$|\s*-t\s*$/ig, '').trim();
+                                            }
+                                        }
+                                        const subs = dlSubject === 'All' ? derivedSubjects : derivedSubjects.filter(s => {
+                                            return s.cleanName.replace(/\s*\(Lab\)\s*|\s*\(Theory\)\s*|\s*-l\s*$|\s*-t\s*$/ig, '').trim() === selectedCleanName;
+                                        });
+
+                                        const uniqueSubjectsMap = new Map();
+                                        subs.forEach(sub => {
+                                            const strippedName = sub.cleanName.replace(/\s*\(Lab\)\s*|\s*\(Theory\)\s*|\s*-l\s*$|\s*-t\s*$/ig, '').trim();
+                                            if (!uniqueSubjectsMap.has(strippedName)) {
+                                                uniqueSubjectsMap.set(strippedName, { strippedName, ids: [sub.id] });
+                                            } else {
+                                                uniqueSubjectsMap.get(strippedName).ids.push(sub.id);
+                                            }
+                                        });
+                                        const groupedSubs = Array.from(uniqueSubjectsMap.values());
+
+                                        const headerRow1 = ['Sl No', 'Reg No', 'Name', 'Semester', 'Section'];
+                                        const headerRow2 = ['', '', '', '', ''];
+                                        groupedSubs.forEach(gSub => {
+                                            cieKeys.forEach((cie, idx) => {
+                                                headerRow1.push(idx === 0 ? `"${gSub.strippedName}"` : ''); headerRow1.push('');
+                                                const formattedCie = cie.toUpperCase().replace('CIE', 'CIE-');
+                                                headerRow2.push(formattedCie); headerRow2.push(`${formattedCie} Att`);
+                                            });
+                                        });
+                                        headerRow1.push('Total'); headerRow2.push('');
+                                        headers = headerRow1.join(',') + '\n' + headerRow2.join(',');
+                                        
                                         rows = students.map((s, i) => {
-                                            const row = [i+1, s.regNo||'', (s.name||'').replace(/,/g,' '), s.semester||s.sem||'', s.section||''];
+                                            const row = [i + 1, s.regNo || '', (s.name || '').replace(/,/g, ' '), s.semester || s.sem || '', s.section || ''];
                                             let total = 0;
-                                            subs.forEach(sub => { const sm = (s.subjectMarks||{})[sub.id]||{}; cieKeys.forEach(cie => { row.push(sm[cie]!==undefined?sm[cie]:'-'); row.push(sm[cie+'_att']!=null?sm[cie+'_att']+'%':'-'); if(sm[cie]!==undefined) total+=parseFloat(sm[cie]); }); });
+                                            groupedSubs.forEach(gSub => {
+                                                cieKeys.forEach(cie => {
+                                                    let mark = '-';
+                                                    let att = '-';
+                                                    const mObj = s.subjectMarks || {};
+                                                    for (let key of Object.keys(mObj)) {
+                                                        const isIdMatch = gSub.ids.includes(key) || gSub.ids.includes(parseInt(key, 10)) || gSub.ids.includes(key.toString());
+                                                        const cleanKey = key.toString().replace(/\[.*?\]/g, '').replace(/\s*\(Lab\)\s*|\s*\(Theory\)\s*|\s*-l\s*$|\s*-t\s*$/ig, '').trim().toLowerCase();
+                                                        const targetName = gSub.strippedName.toLowerCase().trim();
+                                                        const isNameMatch = cleanKey === targetName || cleanKey.includes(targetName) || targetName.includes(cleanKey);
+                                                        
+                                                        if (isIdMatch || isNameMatch) {
+                                                            const sm = mObj[key] || {};
+                                                            if (sm[cie] !== undefined && sm[cie] !== '-' && sm[cie] !== '') {
+                                                                mark = sm[cie];
+                                                                att = sm[cie + '_att'] != null ? sm[cie + '_att'] + '%' : '-';
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+                                                    row.push(mark);
+                                                    row.push(att);
+                                                    if(mark !== '-' && mark !== undefined && mark !== '') total += parseFloat(mark);
+                                                });
+                                            });
                                             row.push(total); return row;
                                         });
-                                        filename = `${dept}_Marks_${dlSubject === 'All' ? 'AllSubjects' : dlSubject.replace(/\s+/g,'_')}.csv`;
+                                        filename = `${dept}_Marks_${dlSubject === 'All' ? 'AllSubjects' : String(dlSubject).replace(/\s+/g, '_')}.csv`;
                                     } else if (dlDataType === 'performance') {
                                         let allPerf = [];
+                                        
+                                        let selectedCleanName = null;
+                                        if (dlSubject !== 'All') {
+                                            const matchingTarget = derivedSubjects.find(s => s.name === dlSubject || s.id === dlSubject);
+                                            if (matchingTarget) {
+                                                selectedCleanName = matchingTarget.cleanName.replace(/\s*\(Lab\)\s*|\s*\(Theory\)\s*|\s*-l\s*$|\s*-t\s*$/ig, '').trim();
+                                            }
+                                        }
+
                                         students.forEach(student => {
                                             const m = student.subjectMarks || {};
                                             Object.entries(m).forEach(([subjName, sm]) => {
-                                                if (dlSubject !== 'All' && dlSubject !== subjName) return;
+                                                if (dlSubject !== 'All') {
+                                                    const thisCleanName = subjName.replace(/\[.*?\]/g, '').replace(/\s*\(Lab\)\s*|\s*\(Theory\)\s*|\s*-l\s*$|\s*-t\s*$/ig, '').trim();
+                                                    if (thisCleanName !== selectedCleanName) return;
+                                                }
+                                                
                                                 cieKeys.forEach(cie => {
                                                     const score = sm[cie];
                                                     if (score !== undefined && score !== null && score !== '') {
                                                         const scoreNum = parseFloat(score);
-                                                        const attVal = sm[cie+'_att'] != null ? parseFloat(sm[cie+'_att']) : null;
-                                                        const dbRemarks = sm[cie+'_remarks'] || null;
+                                                        const attVal = sm[cie + '_att'] != null ? parseFloat(sm[cie + '_att']) : null;
+                                                        const dbRemarks = sm[cie + '_remarks'] || null;
                                                         let cat = scoreNum >= 40 ? 'excellent' : scoreNum >= 20 ? 'average' : 'low';
                                                         let remark = dbRemarks || (scoreNum < 20 && attVal != null && attVal < 75 ? 'Needs Improvement' : scoreNum < 20 ? 'Below Average' : scoreNum >= 40 ? 'Excellent Performance' : 'Good');
                                                         if (dlPerfCategory === 'all' || dlPerfCategory === cat) {
-                                                            allPerf.push({ regNo: student.regNo, name: student.name, section: student.section, subject: subjName.replace(/\[.*?\]/g,'').trim(), cieType: cie.toUpperCase(), score: scoreNum, att: attVal, remarks: remark, phone: student.parentPhone || '' });
+                                                            allPerf.push({ regNo: student.regNo, name: student.name, section: student.section, subject: subjName.replace(/\[.*?\]/g, '').trim(), cieType: cie.toUpperCase(), score: scoreNum, att: attVal, remarks: remark, phone: student.parentPhone || '' });
                                                         }
                                                     }
                                                 });
                                             });
                                         });
                                         headers = ['Sl No', 'Reg No', 'Name', 'Section', 'Subject', 'CIE', 'Marks', 'Attendance', 'Remarks', 'Phone'];
-                                        rows = allPerf.map((r,i) => [i+1, r.regNo, (r.name||'').replace(/,/g,' '), r.section||'', r.subject.replace(/,/g,' '), r.cieType, `${r.score}/50`, r.att!=null?`${r.att}%`:'N/A', r.remarks.replace(/,/g,' '), r.phone]);
-                                        filename = `${dept}_${dlPerfCategory==='all'?'All':dlPerfCategory}_Performance.csv`;
+                                        rows = allPerf.map((r, i) => [i + 1, r.regNo, (r.name || '').replace(/,/g, ' '), r.section || '', r.subject.replace(/,/g, ' '), r.cieType, `${r.score}/50`, r.att != null ? `${r.att}%` : 'N/A', r.remarks.replace(/,/g, ' '), r.phone]);
+                                        filename = `${dept}_${dlPerfCategory === 'all' ? 'All' : dlPerfCategory}_Performance.csv`;
                                     } else {
                                         headers = ['Sl No', 'Reg No', 'Name', 'Semester', 'Section', 'Department', 'Email', 'Phone', 'Parent Phone'];
-                                        rows = students.map((s,i) => [i+1, s.regNo||'', (s.name||'').replace(/,/g,' '), s.semester||s.sem||'', s.section||'', s.department||dept, s.email||'', s.phone||'', s.parentPhone||'']);
+                                        rows = students.map((s, i) => [i + 1, s.regNo || '', (s.name || '').replace(/,/g, ' '), s.semester || s.sem || '', s.section || '', s.department || dept, s.email || '', s.phone || '', s.parentPhone || '']);
                                         filename = `${dept}_StudentList.csv`;
                                     }
 
                                     if (rows.length === 0) { alert('No data to download for the selected filters.'); return; }
-                                    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                                    const headerStr = Array.isArray(headers) ? headers.join(',') : headers;
+                                    const csvContent = [headerStr, ...rows.map(r => r.join(','))].join('\n');
                                     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                                     const url = URL.createObjectURL(blob);
                                     const link = document.createElement('a');
@@ -683,109 +754,109 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
 
             <div className={styles.tableCard}>
                 {viewMode === 'list' && (
-                <table className={styles.table}>
-                    <thead>
-                        <tr>
-                            <th style={{ width: '40px' }}><input type="checkbox" onChange={handleSelectAll} checked={selectedStudents.length === paginatedStudents.length && paginatedStudents.length > 0} /></th>
-                            <th style={{ width: '60px' }}>Sl. No</th>
-                            <th>Reg No</th>
-                            <th>Name</th>
-                            <th>Sem</th>
+                    <table className={styles.table}>
+                        <thead>
+                            <tr>
+                                <th style={{ width: '40px' }}><input type="checkbox" onChange={handleSelectAll} checked={selectedStudents.length === paginatedStudents.length && paginatedStudents.length > 0} /></th>
+                                <th style={{ width: '60px' }}>Sl. No</th>
+                                <th>Reg No</th>
+                                <th>Name</th>
+                                <th>Sem</th>
 
-                            <th>CIE Performance</th>
+                                <th>CIE Performance</th>
 
-                            <th>Mentoring</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {effectiveLoading ? (
-                            [1, 2, 3, 4, 5].map(i => (
-                                <tr key={i}>
-                                    <td><Skeleton width="20px" height="20px" /></td>
-                                    <td><Skeleton width="40px" height="14px" /></td>
-                                    <td><Skeleton width="100px" height="14px" /></td>
-                                    <td><Skeleton width="150px" height="14px" /></td>
-                                    <td><Skeleton width="40px" height="14px" /></td>
-                                    <td>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <Skeleton width="80px" height="6px" />
-                                            <Skeleton width="30px" height="14px" />
+                                <th>Mentoring</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {effectiveLoading ? (
+                                [1, 2, 3, 4, 5].map(i => (
+                                    <tr key={i}>
+                                        <td><Skeleton width="20px" height="20px" /></td>
+                                        <td><Skeleton width="40px" height="14px" /></td>
+                                        <td><Skeleton width="100px" height="14px" /></td>
+                                        <td><Skeleton width="150px" height="14px" /></td>
+                                        <td><Skeleton width="40px" height="14px" /></td>
+                                        <td>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <Skeleton width="80px" height="6px" />
+                                                <Skeleton width="30px" height="14px" />
+                                            </div>
+                                        </td>
+                                        <td><Skeleton width="80px" height="20px" /></td>
+                                        <td><Skeleton width="100px" height="32px" /></td>
+                                    </tr>
+                                ))
+                            ) : paginatedStudents.length > 0 ? (
+                                paginatedStudents.map((student, index) => (
+                                    <tr key={student.id} onClick={() => handleViewProfile(student)} style={{ cursor: 'pointer', background: selectedStudents.includes(student.id) ? '#f0f9ff' : 'transparent' }}>
+                                        <td onClick={(e) => e.stopPropagation()}>
+                                            <input type="checkbox" checked={selectedStudents.includes(student.id)} onChange={() => handleSelectStudent(student.id)} />
+                                        </td>
+                                        <td style={{ color: '#64748b', fontWeight: 500 }}>{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                                        <td>{student.regNo || student.rollNo}</td>
+                                        <td style={{ fontWeight: 600 }}>
+                                            {student.name}
+                                        </td>
+                                        <td>{student.semester || student.sem}</td>
+
+                                        <td>
+                                            {(() => {
+                                                const totalAcquired = Object.values(student.subjectMarks || {}).reduce((sum, marks) => sum + (marks.cie1 || 0) + (marks.cie2 || 0) + (marks.cie3 || 0) + (marks.cie4 || 0) + (marks.cie5 || 0), 0);
+                                                const totalPossible = Object.values(student.subjectMarks || {}).reduce((count, marks) => count + (marks.cie1 !== undefined ? 1 : 0) + (marks.cie2 !== undefined ? 1 : 0) + (marks.cie3 !== undefined ? 1 : 0) + (marks.cie4 !== undefined ? 1 : 0) + (marks.cie5 !== undefined ? 1 : 0), 0) * 50;
+                                                const percentage = totalPossible > 0 ? Math.round((totalAcquired / totalPossible) * 100) : 0;
+                                                return (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <div style={{ width: '80px', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                                                            <div style={{
+                                                                width: `${percentage}%`,
+                                                                height: '100%',
+                                                                background: percentage >= 50 ? '#3b82f6' : '#f59e0b'
+                                                            }}></div>
+                                                        </div>
+                                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{percentage}%</span>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </td>
+
+                                        <td>
+                                            {student.mentoringStatus === 'Done' ? (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#64748b', fontSize: '0.85rem' }}>
+                                                    <CheckCircle size={14} color="#10b981" /> Done
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f59e0b', fontSize: '0.85rem', fontWeight: 500 }}>
+                                                    <Clock size={14} /> Pending
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td>
+                                            <button className={styles.secondaryBtn} onClick={(e) => { e.stopPropagation(); handleViewProfile(student); }} style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
+                                                View Profile
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                                            <Search size={32} color="#cbd5e1" />
+                                            <p style={{ margin: 0 }}>No students found matching your filters.</p>
+                                            <button
+                                                onClick={() => { setSearchQuery(''); setShowAtRisk(false); }}
+                                                style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+                                            >
+                                                Clear Filters
+                                            </button>
                                         </div>
                                     </td>
-                                    <td><Skeleton width="80px" height="20px" /></td>
-                                    <td><Skeleton width="100px" height="32px" /></td>
                                 </tr>
-                            ))
-                        ) : paginatedStudents.length > 0 ? (
-                            paginatedStudents.map((student, index) => (
-                                <tr key={student.id} onClick={() => handleViewProfile(student)} style={{ cursor: 'pointer', background: selectedStudents.includes(student.id) ? '#f0f9ff' : 'transparent' }}>
-                                    <td onClick={(e) => e.stopPropagation()}>
-                                        <input type="checkbox" checked={selectedStudents.includes(student.id)} onChange={() => handleSelectStudent(student.id)} />
-                                    </td>
-                                    <td style={{ color: '#64748b', fontWeight: 500 }}>{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                                    <td>{student.regNo || student.rollNo}</td>
-                                    <td style={{ fontWeight: 600 }}>
-                                        {student.name}
-                                    </td>
-                                    <td>{student.semester || student.sem}</td>
-
-                                    <td>
-                                        {(() => {
-                                            const totalAcquired = Object.values(student.subjectMarks || {}).reduce((sum, marks) => sum + (marks.cie1 || 0) + (marks.cie2 || 0) + (marks.cie3 || 0) + (marks.cie4 || 0) + (marks.cie5 || 0), 0);
-                                            const totalPossible = Object.values(student.subjectMarks || {}).reduce((count, marks) => count + (marks.cie1 !== undefined ? 1 : 0) + (marks.cie2 !== undefined ? 1 : 0) + (marks.cie3 !== undefined ? 1 : 0) + (marks.cie4 !== undefined ? 1 : 0) + (marks.cie5 !== undefined ? 1 : 0), 0) * 50;
-                                            const percentage = totalPossible > 0 ? Math.round((totalAcquired / totalPossible) * 100) : 0;
-                                            return (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <div style={{ width: '80px', height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
-                                                        <div style={{
-                                                            width: `${percentage}%`,
-                                                            height: '100%',
-                                                            background: percentage >= 50 ? '#3b82f6' : '#f59e0b'
-                                                        }}></div>
-                                                    </div>
-                                                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{percentage}%</span>
-                                                </div>
-                                            );
-                                        })()}
-                                    </td>
-
-                                    <td>
-                                        {student.mentoringStatus === 'Done' ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#64748b', fontSize: '0.85rem' }}>
-                                                <CheckCircle size={14} color="#10b981" /> Done
-                                            </div>
-                                        ) : (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#f59e0b', fontSize: '0.85rem', fontWeight: 500 }}>
-                                                <Clock size={14} /> Pending
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td>
-                                        <button className={styles.secondaryBtn} onClick={(e) => { e.stopPropagation(); handleViewProfile(student); }} style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
-                                            View Profile
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))
-                        ) : (
-                            <tr>
-                                <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                                        <Search size={32} color="#cbd5e1" />
-                                        <p style={{ margin: 0 }}>No students found matching your filters.</p>
-                                        <button
-                                            onClick={() => { setSearchQuery(''); setShowAtRisk(false); }}
-                                            style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
-                                        >
-                                            Clear Filters
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+                            )}
+                        </tbody>
+                    </table>
                 )}
 
                 {viewMode === 'marks' && (
@@ -812,7 +883,7 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                                 )}
                             </div>
                         </div>
-                        
+
                         <div className={styles.tableWrapper} style={{ overflowX: 'auto' }}>
                             <table className={styles.table} style={{ borderCollapse: 'collapse', width: selectedMarksSubject === 'ALL' ? '100%' : 'max-content', minWidth: '100%' }}>
                                 {selectedMarksSubject === 'ALL' ? (
@@ -826,7 +897,7 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                                                     let subTotal = 0, subPassed = 0;
                                                     paginatedStudents.forEach(st => {
                                                         const sm = st.subjectMarks?.[sub.id] || {};
-                                                        ['cie1','cie2','cie3','cie4','cie5'].forEach(cie => {
+                                                        ['cie1', 'cie2', 'cie3', 'cie4', 'cie5'].forEach(cie => {
                                                             if (sm[cie] !== undefined) {
                                                                 subTotal++;
                                                                 if (parseFloat(sm[cie]) >= 20) subPassed++;
@@ -905,74 +976,74 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                                                                     {['cie1', 'all'].includes(selectedCieType) && (() => {
                                                                         if (sm.cie1 !== undefined) { grandTotal += parseFloat(sm.cie1); grandCount++; }
                                                                         return (
-                                                                        <>
-                                                                            <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px dashed #e2e8f0', color: sm.cie1 !== undefined && sm.cie1 < 20 ? '#ef4444' : '#1e293b', fontWeight: sm.cie1 !== undefined ? 600 : 400, background: '#f8fafc' }}>
-                                                                                {sm.cie1 !== undefined ? sm.cie1 : '-'}
-                                                                            </td>
-                                                                            <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
-                                                                                {sm.cie1_att !== undefined ? sm.cie1_att + '%' : '-'}
-                                                                            </td>
-                                                                        </>
+                                                                            <>
+                                                                                <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px dashed #e2e8f0', color: sm.cie1 !== undefined && sm.cie1 < 20 ? '#ef4444' : '#1e293b', fontWeight: sm.cie1 !== undefined ? 600 : 400, background: '#f8fafc' }}>
+                                                                                    {sm.cie1 !== undefined ? sm.cie1 : '-'}
+                                                                                </td>
+                                                                                <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
+                                                                                    {sm.cie1_att !== undefined ? sm.cie1_att + '%' : '-'}
+                                                                                </td>
+                                                                            </>
                                                                         );
                                                                     })()}
                                                                     {['cie2', 'all'].includes(selectedCieType) && (() => {
                                                                         if (sm.cie2 !== undefined) { grandTotal += parseFloat(sm.cie2); grandCount++; }
                                                                         return (
-                                                                        <>
-                                                                            <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px dashed #e2e8f0', color: sm.cie2 !== undefined && sm.cie2 < 20 ? '#ef4444' : '#1e293b', fontWeight: sm.cie2 !== undefined ? 600 : 400, background: '#f8fafc' }}>
-                                                                                {sm.cie2 !== undefined ? sm.cie2 : '-'}
-                                                                            </td>
-                                                                            <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
-                                                                                {sm.cie2_att !== undefined ? sm.cie2_att + '%' : '-'}
-                                                                            </td>
-                                                                        </>
+                                                                            <>
+                                                                                <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px dashed #e2e8f0', color: sm.cie2 !== undefined && sm.cie2 < 20 ? '#ef4444' : '#1e293b', fontWeight: sm.cie2 !== undefined ? 600 : 400, background: '#f8fafc' }}>
+                                                                                    {sm.cie2 !== undefined ? sm.cie2 : '-'}
+                                                                                </td>
+                                                                                <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
+                                                                                    {sm.cie2_att !== undefined ? sm.cie2_att + '%' : '-'}
+                                                                                </td>
+                                                                            </>
                                                                         );
                                                                     })()}
                                                                     {['cie3', 'all'].includes(selectedCieType) && (() => {
                                                                         if (sm.cie3 !== undefined) { grandTotal += parseFloat(sm.cie3); grandCount++; }
                                                                         return (
-                                                                        <>
-                                                                            <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px dashed #e2e8f0', color: sm.cie3 !== undefined && sm.cie3 < 20 ? '#ef4444' : '#1e293b', fontWeight: sm.cie3 !== undefined ? 600 : 400, background: '#f8fafc' }}>
-                                                                                {sm.cie3 !== undefined ? sm.cie3 : '-'}
-                                                                            </td>
-                                                                            <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
-                                                                                {sm.cie3_att !== undefined ? sm.cie3_att + '%' : '-'}
-                                                                            </td>
-                                                                        </>
+                                                                            <>
+                                                                                <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px dashed #e2e8f0', color: sm.cie3 !== undefined && sm.cie3 < 20 ? '#ef4444' : '#1e293b', fontWeight: sm.cie3 !== undefined ? 600 : 400, background: '#f8fafc' }}>
+                                                                                    {sm.cie3 !== undefined ? sm.cie3 : '-'}
+                                                                                </td>
+                                                                                <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
+                                                                                    {sm.cie3_att !== undefined ? sm.cie3_att + '%' : '-'}
+                                                                                </td>
+                                                                            </>
                                                                         );
                                                                     })()}
                                                                     {['cie4', 'all'].includes(selectedCieType) && (() => {
                                                                         if (sm.cie4 !== undefined) { grandTotal += parseFloat(sm.cie4); grandCount++; }
                                                                         return (
-                                                                        <>
-                                                                            <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px dashed #e2e8f0', color: sm.cie4 !== undefined && sm.cie4 < 20 ? '#ef4444' : '#1e293b', fontWeight: sm.cie4 !== undefined ? 600 : 400, background: '#f8fafc' }}>
-                                                                                {sm.cie4 !== undefined ? sm.cie4 : '-'}
-                                                                            </td>
-                                                                            <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
-                                                                                {sm.cie4_att !== undefined ? sm.cie4_att + '%' : '-'}
-                                                                            </td>
-                                                                        </>
+                                                                            <>
+                                                                                <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px dashed #e2e8f0', color: sm.cie4 !== undefined && sm.cie4 < 20 ? '#ef4444' : '#1e293b', fontWeight: sm.cie4 !== undefined ? 600 : 400, background: '#f8fafc' }}>
+                                                                                    {sm.cie4 !== undefined ? sm.cie4 : '-'}
+                                                                                </td>
+                                                                                <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
+                                                                                    {sm.cie4_att !== undefined ? sm.cie4_att + '%' : '-'}
+                                                                                </td>
+                                                                            </>
                                                                         );
                                                                     })()}
                                                                     {['cie5', 'all'].includes(selectedCieType) && (() => {
                                                                         if (sm.cie5 !== undefined) { grandTotal += parseFloat(sm.cie5); grandCount++; }
                                                                         return (
-                                                                        <>
-                                                                            <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px dashed #e2e8f0', color: sm.cie5 !== undefined && sm.cie5 < 20 ? '#ef4444' : '#1e293b', fontWeight: sm.cie5 !== undefined ? 600 : 400, background: '#f8fafc' }}>
-                                                                                {sm.cie5 !== undefined ? sm.cie5 : '-'}
-                                                                            </td>
-                                                                            <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
-                                                                                {sm.cie5_att !== undefined ? sm.cie5_att + '%' : '-'}
-                                                                            </td>
-                                                                        </>
+                                                                            <>
+                                                                                <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px dashed #e2e8f0', color: sm.cie5 !== undefined && sm.cie5 < 20 ? '#ef4444' : '#1e293b', fontWeight: sm.cie5 !== undefined ? 600 : 400, background: '#f8fafc' }}>
+                                                                                    {sm.cie5 !== undefined ? sm.cie5 : '-'}
+                                                                                </td>
+                                                                                <td style={{ textAlign: 'center', padding: '6px', borderRight: '1px solid #cbd5e1', color: '#64748b', fontSize: '0.85rem' }}>
+                                                                                    {sm.cie5_att !== undefined ? sm.cie5_att + '%' : '-'}
+                                                                                </td>
+                                                                            </>
                                                                         );
                                                                     })()}
                                                                 </React.Fragment>
                                                             );
                                                         })}
                                                         <td style={{ textAlign: 'center', borderLeft: '1px solid #e2e8f0', fontWeight: 'bold', backgroundColor: '#fefce8', verticalAlign: 'middle', padding: '8px' }}>
-                                                            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: grandCount > 0 && (grandTotal/grandCount) >= 20 ? '#dcfce7' : '#fee2e2', color: grandCount > 0 && (grandTotal/grandCount) >= 20 ? '#16a34a' : '#ef4444' }}>
-                                                                {grandCount > 0 ? Math.round(grandTotal/grandCount) : '-'}
+                                                            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: grandCount > 0 && (grandTotal / grandCount) >= 20 ? '#dcfce7' : '#fee2e2', color: grandCount > 0 && (grandTotal / grandCount) >= 20 ? '#16a34a' : '#ef4444' }}>
+                                                                {grandCount > 0 ? Math.round(grandTotal / grandCount) : '-'}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1012,7 +1083,7 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                                                         <td style={{ textAlign: 'center', borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', color: '#64748b' }}>{index + 1}</td>
                                                         <td style={{ borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0', fontWeight: 600 }}>{student.regNo || student.rollNo}</td>
                                                         <td style={{ borderRight: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>{student.name}</td>
-                                                        
+
                                                         {['cie1', 'all'].includes(selectedCieType) && (
                                                             <React.Fragment>
                                                                 <td style={{ textAlign: 'center', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', fontWeight: 600 }}>{sm.cie1 !== undefined ? sm.cie1 : '-'}</td>
@@ -1044,7 +1115,7 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                                                             </React.Fragment>
                                                         )}
                                                         <td style={{ textAlign: 'center', borderBottom: '1px solid #e2e8f0', fontWeight: 'bold', backgroundColor: '#fefce8', color: '#0f172a' }}>
-                                                            {((sm.cie1||0)+(sm.cie2||0)+(sm.cie3||0)+(sm.cie4||0)+(sm.cie5||0)) || '-'}
+                                                            {((sm.cie1 || 0) + (sm.cie2 || 0) + (sm.cie3 || 0) + (sm.cie4 || 0) + (sm.cie5 || 0)) || '-'}
                                                         </td>
                                                     </tr>
                                                 );
@@ -1064,19 +1135,19 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                         .filter(item => perfSubjectFilter === 'All' || item.subject === perfSubjectFilter)
                         .filter(item => perfCieFilter === 'All' || item.cieType === perfCieFilter);
                     const getUniqueStudentCount = (list) => new Set(list.map(s => s.regNo || s.rollNo)).size;
-                    
+
                     const filteredExcellent = applyFilters(processedPerfData.excellent);
                     const filteredAverage = applyFilters(processedPerfData.average);
                     const filteredLow = applyFilters(processedPerfData.low);
                     const filteredPassed = applyFilters(processedPerfData.passed);
-                    
+
                     const perfTabs = [
                         { id: 'excellent', label: 'Excellent Performance', color: '#10b981', bg: '#f0fdf4', borderColor: '#bcf0da', icon: <Award size={20} />, list: filteredExcellent, studentCount: getUniqueStudentCount(filteredExcellent), description: `Scored > ${perfConfig.excellent_threshold}/50 marks.` },
                         { id: 'average', label: 'Average Performance', color: '#f59e0b', bg: '#fffbeb', borderColor: '#fde68a', icon: <ClipboardList size={20} />, list: filteredAverage, studentCount: getUniqueStudentCount(filteredAverage), description: `Scored ${perfConfig.average_threshold_min} - ${perfConfig.excellent_threshold} marks.` },
                         { id: 'low', label: 'Low Performance', color: '#ef4444', bg: '#fef2f2', borderColor: '#fecaca', icon: <AlertTriangle size={20} />, list: filteredLow, studentCount: getUniqueStudentCount(filteredLow), description: `Scored < ${perfConfig.average_threshold_min} marks.` },
                         { id: 'passedTarget', label: 'Passed Students', color: '#3b82f6', bg: '#eff6ff', borderColor: '#bfdbfe', icon: <CheckCircle size={20} />, list: filteredPassed, studentCount: getUniqueStudentCount(filteredPassed), description: 'Overall Pass Target Met (Avg >= 40%)' }
                     ];
-                    
+
                     const activeConfig = perfTabs.find(t => t.id === perfTab) || perfTabs[2];
                     const filteredList = activeConfig.list;
 
@@ -1102,7 +1173,7 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                                     </select>
                                 </div>
                             </div>
-                            
+
                             {/* Performance Sub-tabs */}
                             <div style={{ display: 'flex', gap: '12px', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
                                 {perfTabs.map(tab => (
@@ -1128,13 +1199,13 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                                     </button>
                                 ))}
                             </div>
-                            
+
                             <div style={{ padding: '1rem', background: activeConfig.bg, border: `1px solid ${activeConfig.borderColor}`, borderRadius: '8px', marginBottom: '1.5rem', color: activeConfig.color, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 {activeConfig.icon}
                                 <strong>{activeConfig.label} ({filteredList.length} records):</strong> {activeConfig.description}
                                 <span style={{ marginLeft: 'auto', fontSize: '0.8rem', opacity: 0.8 }}>Unique Students: {activeConfig.studentCount}</span>
                             </div>
-                            
+
                             <div className={styles.tableWrapper} style={{ overflowX: 'auto' }}>
                                 <table className={styles.table} style={{ borderCollapse: 'collapse', width: '100%' }}>
                                     <thead>
@@ -1154,34 +1225,34 @@ export const DirectorySection = memo(({ departments = [], selectedDept, deptStud
                                                 const att = record.attendance;
                                                 const remarks = record.remarksText || 'No remarks recorded.';
                                                 return (
-                                                <tr key={`${record.id}-${record.subject || 'ALL'}-${record.cieType || 'OVERALL'}`} onClick={() => handleViewProfile(record)} style={{ cursor: 'pointer', borderBottom: '1px solid #e2e8f0', transition: 'background 0.2s', background: 'transparent' }} onMouseOver={e=>e.currentTarget.style.background='#f8fafc'} onMouseOut={e=>e.currentTarget.style.background='transparent'}>
-                                                    <td style={{ color: '#64748b', fontWeight: 500 }}>{index + 1}</td>
-                                                    <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{record.regNo || record.rollNo}</td>
-                                                    <td>
-                                                        <div style={{ fontWeight: 600 }}>{record.name}</div>
-                                                        <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{record.subjectClean || record.subject || 'All Subjects'} ({record.cieType || 'OVERALL'})</div>
-                                                    </td>
-                                                    <td>
-                                                        <span style={{ color: activeConfig.color, fontWeight: 'bold' }}>
-                                                            {record.score} {(!record.cieType || record.cieType.toUpperCase() !== 'OVERALL') && !record.score?.toString().includes('%') ? ' / 50' : ''}
-                                                        </span>
-                                                    </td>
-                                                    <td style={{ fontWeight: 500 }}>
-                                                        {att != null ? `${att}%` : 'N/A'}
-                                                    </td>
-                                                    <td>
-                                                        <div style={{ background: remarks.includes('Low') || remarks.includes('Needs') ? '#fef2f2' : remarks.includes('Excellent') ? '#f0fdf4' : '#f8fafc', border: `1px solid ${remarks.includes('Low') || remarks.includes('Needs') ? '#fecaca' : remarks.includes('Excellent') ? '#bbf7d0' : '#e2e8f0'}`, padding: '6px 10px', borderRadius: '6px', fontSize: '0.85rem', color: remarks.includes('Low') || remarks.includes('Needs') ? '#dc2626' : remarks.includes('Excellent') ? '#16a34a' : '#475569', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }} title={remarks}>
-                                                            {remarks}
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                            <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#1e293b' }}>
-                                                                {record.parentPhone || 'No Contact'}
+                                                    <tr key={`${record.id}-${record.subject || 'ALL'}-${record.cieType || 'OVERALL'}`} onClick={() => handleViewProfile(record)} style={{ cursor: 'pointer', borderBottom: '1px solid #e2e8f0', transition: 'background 0.2s', background: 'transparent' }} onMouseOver={e => e.currentTarget.style.background = '#f8fafc'} onMouseOut={e => e.currentTarget.style.background = 'transparent'}>
+                                                        <td style={{ color: '#64748b', fontWeight: 500 }}>{index + 1}</td>
+                                                        <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{record.regNo || record.rollNo}</td>
+                                                        <td>
+                                                            <div style={{ fontWeight: 600 }}>{record.name}</div>
+                                                            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{record.subjectClean || record.subject || 'All Subjects'} ({record.cieType || 'OVERALL'})</div>
+                                                        </td>
+                                                        <td>
+                                                            <span style={{ color: activeConfig.color, fontWeight: 'bold' }}>
+                                                                {record.score} {(!record.cieType || record.cieType.toUpperCase() !== 'OVERALL') && !record.score?.toString().includes('%') ? ' / 50' : ''}
                                                             </span>
-                                                        </div>
-                                                    </td>
-                                                </tr>
+                                                        </td>
+                                                        <td style={{ fontWeight: 500 }}>
+                                                            {att != null ? `${att}%` : 'N/A'}
+                                                        </td>
+                                                        <td>
+                                                            <div style={{ background: remarks.includes('Low') || remarks.includes('Needs') ? '#fef2f2' : remarks.includes('Excellent') ? '#f0fdf4' : '#f8fafc', border: `1px solid ${remarks.includes('Low') || remarks.includes('Needs') ? '#fecaca' : remarks.includes('Excellent') ? '#bbf7d0' : '#e2e8f0'}`, padding: '6px 10px', borderRadius: '6px', fontSize: '0.85rem', color: remarks.includes('Low') || remarks.includes('Needs') ? '#dc2626' : remarks.includes('Excellent') ? '#16a34a' : '#475569', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 500 }} title={remarks}>
+                                                                {remarks}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                <span style={{ fontSize: '0.85rem', fontWeight: '600', color: '#1e293b' }}>
+                                                                    {record.parentPhone || 'No Contact'}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
                                                 );
                                             })
                                         ) : (

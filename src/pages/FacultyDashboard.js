@@ -496,9 +496,12 @@ const FacultyDashboard = () => {
         if (!user || !user.token) return;
         try {
             const anRes = await authenticatedFetch(`${API_BASE_URL}/faculty/analytics`);
-            if (anRes.ok) {
+            if (anRes && anRes.ok) {
                 const data = await anRes.json();
                 setFacultyClassAnalytics(data);
+            } else if (anRes && anRes.status === 401) {
+                console.warn("Analytics endpoint returned 401, using fallback data.");
+                // Fallback handled by initial state
             }
         } catch (e) {
             console.error("Failed to fetch analytics", e);
